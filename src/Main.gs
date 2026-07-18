@@ -118,16 +118,24 @@ function gmailCleanup() {
     let currentToken = continuationToken;
 
     do {
-      const searchResult = currentToken
-        ? GmailApp.continueSearch(currentToken, BATCH_SIZE)
-        : GmailApp.search(searchQuery, 0, BATCH_SIZE);
+      const listOptions = {
+        q: searchQuery,
+        maxResults: BATCH_SIZE,
+      };
+      if (currentToken) {
+        listOptions.pageToken = currentToken;
+      }
 
-      threads = searchResult.threads;
-      currentToken = searchResult.continuationToken;
+      const response = Gmail.Users.threads.list('me', listOptions);
+      currentToken = response.nextPageToken;
 
-      if (threads.length > 0) {
+      if (response.threads && response.threads.length > 0) {
+        const threadIds = response.threads.map(t => t.id);
+        threads = GmailApp.getThreadsByIds(threadIds);
         Logger.log(`Processing a batch of ${threads.length} threads.`);
         CleanupService.processThreads(threads, stats);
+      } else {
+        threads = []; // No more threads found, ensures loop condition is false
       }
 
       if (Utils.isTimeRunningOut()) {
@@ -143,7 +151,7 @@ function gmailCleanup() {
         lock.releaseLock();
         return; // Exit and wait for the next trigger or finish.
       }
-    } while (threads.length === BATCH_SIZE && currentToken);
+    } while (currentToken);
 
     const totalRuntime = Math.round((new Date().getTime() - stats.startTime) / 1000);
     Logger.log('====== Gmail Cleanup Complete ======');
