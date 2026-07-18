@@ -1,2 +1,145 @@
-# gmail-smart-cleaner
-A production-ready Google Apps Script to automatically organize, archive, label and clean your Gmail inbox with smart rules, OTP cleanup, scheduled automation and HTML reports.
+# Gmail Smart Cleaner
+
+A production-ready Google Apps Script to automatically organize, label, and clean your Gmail inbox. This project is designed for developers, providing a robust, scalable, and fully automated solution that you can set up once and forget.
+
+[![Deploy to Apps Script](https://github.com/kaunain/gmail-smart-cleaner/actions/workflows/deploy.yml/badge.svg)](https://github.com/kaunain/gmail-smart-cleaner/actions/workflows/deploy.yml)
+
+---
+
+## Features
+
+-   **Smart Labeling**: Automatically classifies and labels emails from services like GitHub, LinkedIn, Amazon, banks, and more.
+-   **Automated Cleanup**: Moves old OTPs, promotions, and social media emails to the trash based on configurable timeframes.
+-   **Intelligent Archiving**: Archives read newsletters, promotions, and forum discussions to keep your inbox clean.
+-   **Safety First**: Includes non-negotiable safety rules to prevent accidental deletion of important, starred, or unread emails.
+-   **Resilient by Design**: Handles large inboxes (50,000+ emails) by using batch processing and automatically resuming after hitting Google's 6-minute execution limit.
+-   **Automated Reporting**: Sends weekly and monthly HTML summary reports of its activity directly to your email.
+-   **CI/CD Ready**: Comes with a complete GitHub Actions workflow for automatic deployment on every `git push`.
+-   **VS Code Ready**: Full support for local development with `@google/clasp` and TypeScript type definitions for autocompletion.
+
+---
+
+## Project Structure
+
+All application code resides in the `/src` directory.
+
+```
+.
+├── .github/workflows/deploy.yml  # GitHub Actions CI/CD workflow
+├── src/                          # Google Apps Script source code
+│   ├── Config.gs                 # All user settings and rules
+│   ├── Main.gs                   # Main entry points for the script
+│   ├── ... (other modules)
+│   └── appsscript.json           # Apps Script manifest
+├── .clasp.json                   # Clasp project configuration (local)
+├── .gitignore
+├── package.json                  # NPM scripts and dependencies
+└── README.md
+```
+
+---
+
+## Installation & Deployment
+
+This guide provides a professional setup using `clasp`, a command-line tool for managing Apps Script projects. This allows you to use your favorite code editor (like VS Code) and version control (Git).
+
+### Prerequisites
+
+1.  **Node.js**: Version 22 LTS or higher.
+2.  **Google Account**: The Gmail account you want to clean.
+
+### Step 1: Local Setup
+
+1.  **Clone the Repository**:
+    ```sh
+    git clone https://github.com/kaunain/gmail-smart-cleaner.git
+    cd gmail-smart-cleaner
+    ```
+
+2.  **Install Dependencies**:
+    ```sh
+    npm install
+    ```
+
+3.  **Log in to Google**: Authorize `clasp` to manage your Google Apps Script projects. This will open a browser window.
+    ```sh
+    npm run login
+    ```
+
+4.  **Create a New Apps Script Project**: This command creates a new, standalone Apps Script project in your Google Drive and links it to this local repository.
+    ```sh
+    npm run create
+    ```
+    This will generate a `.clasp.json` file containing your new `scriptId`.
+
+5.  **Push the Code**: Deploy the code from your local machine to the newly created Apps Script project.
+    ```sh
+    npm run push
+    ```
+
+6.  **Open the Project**: Open the project in the Google Apps Script web editor.
+    ```sh
+    npm run open
+    ```
+
+### Step 2: First Run & Configuration
+
+1.  **Initial Run**: In the Apps Script editor, select the `runInitialSetup` function from the dropdown menu and click **Run**.
+    -   You will be prompted to grant the necessary permissions (Gmail, etc.). Please review and accept them.
+    -   This function will create all the necessary Gmail labels defined in `src/Config.gs`.
+
+2.  **Configure the Script**:
+    -   Open `src/Config.gs` in your local code editor.
+    -   Set `DRY_RUN: false` to allow the script to make changes.
+    -   Customize `SAFE_SENDERS`, `SAFE_DOMAINS`, and other rules to fit your needs.
+    -   Save the file and push the changes: `npm run push`.
+
+3.  **Install Triggers**: To automate the script, run the `installTriggers` function from the Apps Script editor. This will set up the daily cleanup and summary report triggers.
+
+Your Gmail Smart Cleaner is now fully configured and automated!
+
+---
+
+## CI/CD with GitHub Actions (Optional)
+
+Set up a CI/CD pipeline to automatically deploy changes to Apps Script whenever you push to your `main` branch on GitHub.
+
+### Step 1: Create a GitHub Repository
+
+Fork this repository or push your local clone to a new repository on your GitHub account.
+
+### Step 2: Get Credentials
+
+After running `npm run login` locally, a file named `.clasprc.json` is created in your home directory (`~/.clasprc.json`). Open this file. It contains the credentials needed for the GitHub Action.
+
+### Step 3: Add GitHub Secrets
+
+In your GitHub repository, go to `Settings` > `Secrets and variables` > `Actions` and add the following repository secrets:
+
+-   `CLASP_SCRIPT_ID`: The script ID from your `.clasp.json` file.
+-   `CLASP_REFRESH_TOKEN`: The `refresh_token` from `~/.clasprc.json`.
+-   `CLASP_CLIENT_ID`: The `clientId` from the `oauth2ClientSettings` section of `~/.clasprc.json`.
+-   `CLASP_CLIENT_SECRET`: The `clientSecret` from the `oauth2ClientSettings` section of `~/.clasprc.json`.
+-   `CLASP_ACCESS_TOKEN`: The `access_token` from `~/.clasprc.json`.
+
+### Step 4: Deploy!
+
+Now, every time you `git push` to your `main` branch, the GitHub Action will automatically run and deploy the latest version of your code to your Google Apps Script project.
+
+---
+
+## Configuration
+
+All settings are centralized in `src/Config.gs`.
+
+-   `DRY_RUN`: Set to `true` to test rules without making any changes.
+-   `BATCH_SIZE`: Number of emails to process at once.
+-   `TRASH_RULES`: Define which labels lead to deletion and after how many days.
+-   `CLASSIFICATION_RULES`: The core logic for labeling emails based on sender, subject, and more.
+-   `SAFE_SENDERS` / `SAFE_DOMAINS`: Whitelist important senders and domains to protect them from deletion.
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
