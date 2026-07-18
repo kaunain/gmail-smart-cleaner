@@ -7,13 +7,24 @@ const Utils = {
    * The timestamp when the script execution started.
    * @type {number}
    */
-  _scriptStartTime: new Date().getTime(),
+  _scriptStartTime: 0,
+
+  /**
+   * Resets the script start time to the current time.
+   * Should be called at the beginning of a new execution slice.
+   */
+  resetStartTime() {
+    this._scriptStartTime = new Date().getTime();
+  },
 
   /**
    * Checks if the script is approaching the maximum execution time limit.
    * @returns {boolean} True if time is running out, false otherwise.
    */
   isTimeRunningOut() {
+    if (this._scriptStartTime === 0) {
+      this.resetStartTime(); // Auto-initialize on first call if not explicitly reset
+    }
     const currentTime = new Date().getTime();
     const elapsedTime = (currentTime - this._scriptStartTime) / 1000; // in seconds
     // Stop if we are within 30 seconds of the max runtime to be safe.

@@ -20,12 +20,12 @@ const CleanupService = {
       // 1. Classify and Label
       const newLabels = RuleEngine.classifyThread(thread);
       if (newLabels.length > 0) {
+        stats.threadsLabeledCount++; // Increment count of threads that received at least one label
         newLabels.forEach(labelName => {
           if (!labelMap.has(labelName)) {
             labelMap.set(labelName, []);
           }
           labelMap.get(labelName).push(thread);
-          stats.labeledCount++;
         });
       }
 
@@ -105,8 +105,8 @@ const CleanupService = {
 
     const from = thread.getMessages()[0].getFrom().toLowerCase();
     const domain = Utils.getDomainFromEmail(from);
-    if (CONFIG.SAFETY.SAFE_SENDERS.map(s => s.toLowerCase()).includes(from)) { Logger.debug(`Skipping thread from safe sender "${from}": "${subject}"`); return false; }
-    if (domain && CONFIG.SAFETY.SAFE_DOMAINS.map(d => d.toLowerCase()).includes(domain)) { Logger.debug(`Skipping thread from safe domain "${domain}": "${subject}"`); return false; }
+    if (SAFE_SENDER_EMAILS.includes(from)) { Logger.debug(`Skipping thread from safe sender "${from}": "${subject}"`); return false; }
+    if (domain && SAFE_SENDER_DOMAINS.includes(domain)) { Logger.debug(`Skipping thread from safe domain "${domain}": "${subject}"`); return false; }
 
     const labels = thread.getLabels().map(l => l.getName().toLowerCase());
     if (labels.some(label => SAFE_LABELS.includes(label))) { Logger.debug(`Skipping thread with safe label: "${subject}"`); return false; }

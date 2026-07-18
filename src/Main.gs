@@ -43,10 +43,11 @@ function gmailCleanup() {
   const lockAcquired = lock.tryLock(10000); // Wait 10 seconds for lock
 
   if (!lockAcquired) {
-    Logger.log('Could not acquire lock. Another instance is likely running. Exiting.');
+    Logger.log('Could not acquire lock. Another instance is likely running. Exiting...');
     return;
   }
 
+  Utils.resetStartTime(); // Ensure runtime calculation is correct for this execution slice
   Logger.log('====== Starting Gmail Cleanup ======');
   if (CONFIG.EXECUTION.DRY_RUN) {
     Logger.log('*** DRY RUN IS ENABLED. NO CHANGES WILL BE MADE. ***');
@@ -56,56 +57,87 @@ function gmailCleanup() {
   const savedState = JSON.parse(properties.getProperty('cleanupState') || '{}');
 
   const stats = savedState.stats || {
-    processedCount: 0, labeledCount: 0, archivedCount: 0,
-    trashedCount: 0, skippedCount: 0, startTime: new Date().getTime(),
+    processedCount: 0,
+    threadsLabeledCount: 0,
+    archivedCount: 0,
+    trashedCount: 0,
+    skippedCount: 0,
+    startTime: new Date().getTime(),
   };
-  let page = savedState.page || 0;
+
+  const continuationToken = savedState.continuationToken || null;
   const BATCH_SIZE = CONFIG.EXECUTION.BATCH_SIZE;
-  const searchQuery = 'in:inbox'; // Can be configured later if needed
+
+  let searchQuery = 'in:inbox';
+  if (CONFIG.EXECUTION.SEARCH_OLDER_THAN_DAYS > 0) {
+    searchQuery += ` older_than:${CONFIG.EXECUTION.SEARCH_OLDER_THAN_DAYS}d`;
+  }
 
   try {
     let threads;
+    let currentToken = continuationToken;
+
     do {
-      threads = GmailApp.search(searchQuery, page * BATCH_SIZE, BATCH_SIZE);
-      
+      const searchResult = currentToken
+        ? GmailApp.continueSearch(currentToken, BATCH_SIZE)
+        : GmailApp.search(searchQuery, 0, BATCH_SIZE);
+
+      threads = searchResult.threads;
+      currentToken = searchResult.continuationToken;
+
       if (threads.length > 0) {
-        Logger.log(`Processing page ${page + 1} with ${threads.length} threads.`);
+        Logger.log(`Processing a batch of ${threads.length} threads.`);
         CleanupService.processThreads(threads, stats);
       }
 
       if (Utils.isTimeRunningOut()) {
-        const newState = { page: page + 1, stats: stats };
-        properties.setProperty('cleanupState', JSON.stringify(newState));
-        ScriptApp.newTrigger('gmailCleanup').timeBased().after(60 * 1000).create();
-        Logger.log(`Approaching execution time limit. Pausing. Will resume on page ${page + 2}.`);
+        if (currentToken) {
+          const newState = { continuationToken: currentToken, stats: stats };
+          properties.setProperty('cleanupState', JSON.stringify(newState));
+          ScriptApp.newTrigger('gmailCleanup').timeBased().after(60 * 1000).create();
+          Logger.log('Approaching execution time limit. Pausing. Will resume automatically in 1 minute.');
+        } else {
+          // Ran out of time but also finished processing all threads in the last batch.
+          Logger.log('Approaching time limit, but no more threads to process. Finishing run.');
+        }
         lock.releaseLock();
-        return; // Exit and wait for the next trigger
+        return; // Exit and wait for the next trigger or finish.
       }
-      page++;
-    } while (threads.length === BATCH_SIZE);
+    } while (threads.length === BATCH_SIZE && currentToken);
 
     const totalRuntime = Math.round((new Date().getTime() - stats.startTime) / 1000);
     Logger.log('====== Gmail Cleanup Complete ======');
-    Logger.log(`Processed: ${stats.processedCount}, Labeled: ${stats.labeledCount}, Archived: ${stats.archivedCount}, Trashed: ${stats.trashedCount}, Skipped: ${stats.skippedCount}`);
+    Logger.log(`Processed: ${stats.processedCount}, Labeled: ${stats.threadsLabeledCount}, Archived: ${stats.archivedCount}, Trashed: ${stats.trashedCount}, Skipped: ${stats.skippedCount}`);
     Logger.log(`Total runtime: ${totalRuntime} seconds.`);
 
     properties.setProperty('lastRunStats', JSON.stringify({ ...stats, totalRuntime }));
     properties.deleteProperty('cleanupState');
   } catch (e) {
-    Logger.error('An error occurred during gmailCleanup.', e);
+    Logger.error('A critical error occurred during gmailCleanup.', e);
   } finally {
     lock.releaseLock();
   }
 }
 
-function sendWeeklySummary() {
+/**
+ * Helper function to send a summary report for a given period.
+ * @param {string} period The reporting period (e.g., "Weekly", "Monthly").
+ * @private
+ */
+function _sendSummaryReport(period) {
   const statsJson = PropertiesService.getScriptProperties().getProperty('lastRunStats');
-  if (statsJson) SummaryService.sendSummaryReport('Weekly', JSON.parse(statsJson), JSON.parse(statsJson).totalRuntime);
-  else Logger.log('No stats found for the last run. Skipping weekly report.');
+  if (statsJson) {
+    const lastRun = JSON.parse(statsJson);
+    SummaryService.sendSummaryReport(period, lastRun, lastRun.totalRuntime);
+  } else {
+    Logger.log(`No stats found for the last run. Skipping ${period.toLowerCase()} report.`);
+  }
+}
+
+function sendWeeklySummary() {
+  _sendSummaryReport('Weekly');
 }
 
 function sendMonthlySummary() {
-  const statsJson = PropertiesService.getScriptProperties().getProperty('lastRunStats');
-  if (statsJson) SummaryService.sendSummaryReport('Monthly', JSON.parse(statsJson), JSON.parse(statsJson).totalRuntime);
-  else Logger.log('No stats found for the last run. Skipping monthly report.');
+  _sendSummaryReport('Monthly');
 }

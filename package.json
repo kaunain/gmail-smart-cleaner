@@ -1,22 +1,36 @@
 {
   "name": "gmail-smart-cleaner",
   "version": "1.0.0",
-  "description": "A production-ready Gmail automation project built with Google Apps Script.",
+  "description": "A production-ready Google Apps Script to automatically organize, label, and clean your Gmail inbox.",
   "private": true,
   "scripts": {
     "login": "clasp login",
     "logout": "clasp logout",
     "create": "clasp create --type standalone --title \"Gmail Smart Cleaner\" --rootDir ./src",
     "pull": "clasp pull",
-    "push": "clasp push -f",
-    "deploy": "npm run push",
-    "open": "clasp open"
+    "push": "clasp push --force",
+    "deploy": "clasp push --force",
+    "open": "clasp open",
+    "format": "prettier --write .",
+    "lint": "eslint . --ext .js,.gs",
+    "lint:fix": "eslint . --ext .js,.gs --fix",
+    "release": "semantic-release"
   },
   "devDependencies": {
     "@google/clasp": "^2.4.2",
-    "@types/google-apps-script": "^1.0.83"
+    "@types/google-apps-script": "^1.0.83",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-googleappsscript": "^1.0.4",
+    "prettier": "^3.3.2",
+    "semantic-release": "^24.0.0"
   },
   "engines": {
     "node": ">=22.0.0"
+  },
+  "release": {
+    "branches": [
+      "main"
+    ]
   }
 }

@@ -3,33 +3,44 @@ name: Deploy to Google Apps Script
 on:
   push:
     branches:
-      - main
+      - main # This workflow runs on pushes to the main branch
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # These permissions are needed for semantic-release to create a release
+    permissions:
+      contents: write # to create release
+      issues: write # to comment on released issues
+      pull-requests: write # to comment on released pull requests
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js environment
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: 22
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install project dependencies
         run: npm install
 
-      - name: Create .clasp.json
+      - name: Create clasp configuration file
         run: |
           echo '{"scriptId":"${{ secrets.CLASP_SCRIPT_ID }}","rootDir":"./src"}' > .clasp.json
 
-      - name: Create .clasprc.json
+      - name: Create clasp credentials file
         run: |
           cat <<EOF > ~/.clasprc.json
           {"token":{"access_token":"${{ secrets.CLASP_ACCESS_TOKEN }}","refresh_token":"${{ secrets.CLASP_REFRESH_TOKEN }}","scope":"https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.deployments https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/service.management","token_type":"Bearer","expiry_date":1},"oauth2ClientSettings":{"clientId":"${{ secrets.CLASP_CLIENT_ID }}","clientSecret":"${{ secrets.CLASP_CLIENT_SECRET }}","redirectUri":"http://localhost"}}
           EOF
 
-      - name: Push to Google Apps Script
-        run: npm run push
+      - name: Deploy to Google Apps Script
+        run: npm run deploy
+
+      - name: Semantic Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run release
