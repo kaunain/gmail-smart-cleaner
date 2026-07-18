@@ -136,11 +136,8 @@ After running `npm run login` locally, a file named `.clasprc.json` is created i
 
 In your GitHub repository, go to `Settings` > `Secrets and variables` > `Actions` and add the following repository secrets:
 
--   `CLASP_SCRIPT_ID`: The script ID from your `.clasp.json` file.
--   `CLASP_REFRESH_TOKEN`: The `refresh_token` from `~/.clasprc.json`.
--   `CLASP_CLIENT_ID`: The `clientId` from the `oauth2ClientSettings` section of `~/.clasprc.json`.
--   `CLASP_CLIENT_SECRET`: The `clientSecret` from the `oauth2ClientSettings` section of `~/.clasprc.json`.
--   `CLASP_ACCESS_TOKEN`: The `access_token` from `~/.clasprc.json`.
+-   `CLASP_SCRIPT_ID`: The script ID from your local `.clasp.json` file.
+-   `CLASPRC_JSON`: The entire JSON content of your `~/.clasprc.json` file. You can get this by running `cat ~/.clasprc.json` in your terminal and copying the full output.
 
 ### Step 4: Deploy!
 
