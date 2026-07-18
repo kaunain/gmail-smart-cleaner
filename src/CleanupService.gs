@@ -1,0 +1,116 @@
+/**
+ * @fileoverview Service for executing cleanup actions (trash, archive) on emails.
+ */
+
+const CleanupService = {
+  /**
+   * Processes a batch of threads, applying classification and cleanup rules.
+   * @param {GoogleAppsScript.Gmail.GmailThread[]} threads The threads to process.
+   * @param {object} stats A statistics object to update.
+   */
+  processThreads(threads, stats) {
+    const threadsToTrash = [];
+    const threadsToArchive = [];
+    const labelMap = new Map(); // Maps labelName -> [threads]
+
+    for (const thread of threads) {
+      stats.processedCount++;
+      const subject = thread.getFirstMessageSubject();
+
+      // 1. Classify and Label
+      const newLabels = RuleEngine.classifyThread(thread);
+      if (newLabels.length > 0) {
+        newLabels.forEach(labelName => {
+          if (!labelMap.has(labelName)) {
+            labelMap.set(labelName, []);
+          }
+          labelMap.get(labelName).push(thread);
+          stats.labeledCount++;
+        });
+      }
+
+      // 2. Check for Cleanup Actions (Trash/Archive)
+      const threadLabels = thread.getLabels().map(l => l.getName());
+      const allLabels = [...new Set([...threadLabels, ...newLabels])];
+      let actionTaken = false;
+
+      // Check Trash Rules
+      for (const rule of CONFIG.RULES.TRASH_RULES) {
+        if (allLabels.includes(rule.label)) {
+          const lastMessageDate = thread.getLastMessageDate();
+          const thresholdDate = new Date();
+          thresholdDate.setDate(thresholdDate.getDate() - rule.days);
+
+          if (lastMessageDate < thresholdDate) {
+            if (this.isSafeToDelete(thread, subject)) {
+              threadsToTrash.push(thread);
+              stats.trashedCount++;
+              actionTaken = true;
+            } else {
+              stats.skippedCount++;
+            }
+            break; // A thread can only be trashed once
+          }
+        }
+      }
+
+      // Check Archive Rules (only if not trashed and is unread)
+      if (!actionTaken && thread.isUnread() === false) {
+        for (const rule of CONFIG.RULES.ARCHIVE_RULES) {
+          if (allLabels.includes(rule.label)) {
+            threadsToArchive.push(thread);
+            stats.archivedCount++;
+            break; // A thread can only be archived once
+          }
+        }
+      }
+    }
+
+    // 3. Execute Batch Actions
+    if (CONFIG.EXECUTION.DRY_RUN) {
+      if (threadsToTrash.length > 0) Logger.log(`[DRY RUN] Would trash ${threadsToTrash.length} threads.`);
+      if (threadsToArchive.length > 0) Logger.log(`[DRY RUN] Would archive ${threadsToArchive.length} threads.`);
+      labelMap.forEach((threads, labelName) => {
+        Logger.log(`[DRY RUN] Would apply label "${labelName}" to ${threads.length} threads.`);
+      });
+    } else {
+      if (threadsToTrash.length > 0) {
+        GmailApp.moveThreadsToTrash(threadsToTrash);
+        Logger.log(`Trashed ${threadsToTrash.length} threads.`);
+      }
+      if (threadsToArchive.length > 0) {
+        GmailApp.moveThreadsToArchive(threadsToArchive);
+        Logger.log(`Archived ${threadsToArchive.length} threads.`);
+      }
+      labelMap.forEach((threads, labelName) => {
+        const label = GmailApp.getUserLabelByName(labelName);
+        if (label) {
+          label.addToThreads(threads);
+          Logger.log(`Applied label "${labelName}" to ${threads.length} threads.`);
+        }
+      });
+    }
+  },
+
+  /**
+   * Checks if a thread is safe to be moved to trash.
+   * @param {GoogleAppsScript.Gmail.GmailThread} thread The thread to check.
+   * @param {string} subject The subject of the thread for logging.
+   * @returns {boolean} True if it's safe to delete, false otherwise.
+   */
+  isSafeToDelete(thread, subject) {
+    if (thread.isStarred()) { Logger.debug(`Skipping starred thread: "${subject}"`); return false; }
+    if (thread.isImportant()) { Logger.debug(`Skipping important thread: "${subject}"`); return false; }
+    if (thread.isUnread()) { Logger.debug(`Skipping unread thread: "${subject}"`); return false; }
+
+    const from = thread.getMessages()[0].getFrom().toLowerCase();
+    const domain = Utils.getDomainFromEmail(from);
+    if (CONFIG.SAFETY.SAFE_SENDERS.map(s => s.toLowerCase()).includes(from)) { Logger.debug(`Skipping thread from safe sender "${from}": "${subject}"`); return false; }
+    if (domain && CONFIG.SAFETY.SAFE_DOMAINS.map(d => d.toLowerCase()).includes(domain)) { Logger.debug(`Skipping thread from safe domain "${domain}": "${subject}"`); return false; }
+
+    const labels = thread.getLabels().map(l => l.getName().toLowerCase());
+    if (labels.some(label => SAFE_LABELS.includes(label))) { Logger.debug(`Skipping thread with safe label: "${subject}"`); return false; }
+
+    return true;
+  },
+};
