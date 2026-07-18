@@ -28,9 +28,7 @@ jobs:
 
       - name: Create clasp credentials file
         run: |
-          cat <<EOF > ~/.clasprc.json
-          {"token":{"access_token":"${{ secrets.CLASP_ACCESS_TOKEN }}","refresh_token":"${{ secrets.CLASP_REFRESH_TOKEN }}","scope":"https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.deployments https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/service.management","token_type":"Bearer","expiry_date":1},"oauth2ClientSettings":{"clientId":"${{ secrets.CLASP_CLIENT_ID }}","clientSecret":"${{ secrets.CLASP_CLIENT_SECRET }}","redirectUri":"http://localhost"}}
-          EOF
+          echo '${{ secrets.CLASPRC_JSON }}' > ~/.clasprc.json
 
       - name: Deploy to Google Apps Script
         run: npm run deploy
