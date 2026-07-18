@@ -18,18 +18,14 @@ A production-ready Google Apps Script to automatically organize, label, and clea
 
 ## ✨ Features
 
--   **Smart Labeling**: Automatically classifies and labels emails from services like GitHub, LinkedIn, Amazon, banks, and more.
--   **Automated Cleanup**: Moves old OTPs, promotions, and social media emails to the trash based on configurable timeframes.
--   **Intelligent Archiving**: Archives read newsletters, promotions, and forum discussions to keep your inbox clean.
--   **Safety First**: Includes non-negotiable safety rules to prevent accidental deletion of important, starred, or unread emails.
--   **Resilient by Design**: Handles large inboxes (50,000+ emails) by using batch processing and automatically resuming after hitting Google's 6-minute execution limit.
--   **Automated Reporting**: Sends weekly and monthly HTML summary reports of its activity directly to your email.
--   **CI/CD Ready**: Comes with a complete GitHub Actions workflow for automatic deployment on every `git push`.
--   **VS Code Ready**: Full support for local development with `@google/clasp` and TypeScript type definitions for autocompletion.
--   **Execution Dashboard**: A simple web app to view the history and status of recent script runs.
--   **Attachment Cleanup**: Automatically finds and labels emails with large attachments.
--   **Robust Error Handling**: Includes retry logic with exponential backoff for API calls and sends email notifications on critical failures.
--   **Health Check**: A manual trigger to validate your configuration and check trigger status.
+*   **🤖 Smart Organization**: Automatically classifies and labels emails using a powerful rule engine.
+*   **🗑️ Automated Cleanup**: Intelligently trashes ephemeral emails like OTPs and old promotions.
+*   **🗄️ Intelligent Archiving**: Keeps your inbox clean by archiving read newsletters and notifications.
+*   **🛡️ Safety First**: Protects important, starred, or unread emails with non-negotiable safety checks.
+*   **💪 Resilient by Design**: Handles massive inboxes by gracefully managing Google's execution time limits.
+*   **📊 Health & Reporting**: Includes an Execution Dashboard, automated email reports, and error notifications.
+*   **📎 Attachment Management**: Finds and labels emails with large attachments for manual review.
+*   **⚙️ Developer Focused**: CI/CD-ready, built for VS Code, and fully configurable.
 
 ---
 
@@ -164,6 +160,13 @@ All settings are centralized in `src/Config.gs`.
 
 ---
 
+## 🏷️ GitHub Topics
+
+To improve the discoverability of this repository, we recommend adding the following topics on the main repository page:
+`gmail` `google-apps-script` `automation` `productivity` `gmail-api` `g-suite` `google-workspace` `clasp`
+
+---
+
 ## 🤝 Contributing
 
 Contributions, issues, and feature requests are welcome! Feel free to check the issues page. Please read our contributing guide for more details.
@@ -176,4 +179,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ---
 
-*This project is not created by, affiliated with, or supported by Google LLC.*
+*Disclaimer: This is not an official Google product.*

@@ -42,7 +42,7 @@ const CleanupService = {
           thresholdDate.setDate(thresholdDate.getDate() - rule.days);
 
           if (lastMessageDate < thresholdDate) {
-            if (this.isSafeToDelete(thread, subject)) {
+            if (this.isSafeToDelete(thread, subject, allLabels)) {
               threadsToTrash.push(thread);
               stats.trashedCount++;
               actionTaken = true;
@@ -105,9 +105,10 @@ const CleanupService = {
    * Checks if a thread is safe to be moved to trash.
    * @param {GoogleAppsScript.Gmail.GmailThread} thread The thread to check.
    * @param {string} subject The subject of the thread for logging.
+   * @param {string[]} threadLabelNames Lowercase names of all labels on the thread.
    * @returns {boolean} True if it's safe to delete, false otherwise.
    */
-  isSafeToDelete(thread, subject) {
+  isSafeToDelete(thread, subject, threadLabelNames) {
     if (thread.isStarred()) { Logger.debug(`Skipping starred thread: "${subject}"`); return false; }
     if (thread.isImportant()) { Logger.debug(`Skipping important thread: "${subject}"`); return false; }
     if (thread.isUnread()) { Logger.debug(`Skipping unread thread: "${subject}"`); return false; }
@@ -117,8 +118,7 @@ const CleanupService = {
     if (SAFE_SENDER_EMAILS.includes(from)) { Logger.debug(`Skipping thread from safe sender "${from}": "${subject}"`); return false; }
     if (domain && SAFE_SENDER_DOMAINS.includes(domain)) { Logger.debug(`Skipping thread from safe domain "${domain}": "${subject}"`); return false; }
 
-    const labels = thread.getLabels().map(l => l.getName().toLowerCase());
-    if (labels.some(label => SAFE_LABELS.includes(label))) { Logger.debug(`Skipping thread with safe label: "${subject}"`); return false; }
+    if (threadLabelNames.some(label => SAFE_LABELS.includes(label))) { Logger.debug(`Skipping thread with safe label: "${subject}"`); return false; }
 
     return true;
   },

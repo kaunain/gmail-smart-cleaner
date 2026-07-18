@@ -3,16 +3,11 @@ name: Deploy to Google Apps Script
 on:
   push:
     branches:
-      - main # This workflow runs on pushes to the main branch
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # These permissions are needed for semantic-release to create a release
-    permissions:
-      contents: write # to create release
-      issues: write # to comment on released issues
-      pull-requests: write # to comment on released pull requests
 
     steps:
       - name: Checkout repository
@@ -39,8 +34,3 @@ jobs:
 
       - name: Deploy to Google Apps Script
         run: npm run deploy
-
-      - name: Semantic Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run release

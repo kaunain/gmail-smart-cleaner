@@ -19,14 +19,17 @@ const SummaryService = {
     Logger.log(`Generating ${period} summary report for ${recipient}...`);
 
     const subject = `Gmail Smart Cleaner: ${period} Summary`;
-    const htmlBody = this.createHtmlReport(period, stats, runtimeInSeconds);
+    const htmlBody = this.createHtmlReport(period, stats);
 
     if (CONFIG.EXECUTION.DRY_RUN) {
       Logger.log(`[DRY RUN] Would send summary email to ${recipient}.`);
       Logger.debug(`[DRY RUN] Email Subject: ${subject}`);
     } else {
       try {
-        MailApp.sendEmail({ to: recipient, subject: subject, htmlBody: htmlBody });
+        Utils.withRetry(
+          () => MailApp.sendEmail({ to: recipient, subject: subject, htmlBody: htmlBody }),
+          `send ${period} summary report`
+        );
         Logger.log(`${period} summary report sent successfully.`);
       } catch (e) {
         Logger.error(`Failed to send summary email to ${recipient}`, e);
@@ -38,14 +41,13 @@ const SummaryService = {
    * Creates the HTML content for the summary report email.
    * @param {string} period The reporting period.
    * @param {object} stats The statistics object.
-   * @param {number} runtimeInSeconds The total runtime.
    * @returns {string} The HTML content of the report.
    */
-  createHtmlReport(period, stats, runtimeInSeconds) {
+  createHtmlReport(period, stats) {
     const template = HtmlService.createTemplateFromFile('SummaryReportTemplate');
     template.period = period;
     template.stats = stats;
-    template.runtime = runtimeInSeconds;
+    template.runtime = stats.totalRuntime;
     template.runDate = new Date().toLocaleDateString();
     return template.evaluate().getContent();
   },
