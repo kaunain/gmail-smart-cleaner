@@ -28,6 +28,10 @@ jobs:
 
       - name: Create clasp credentials file
         run: |
+          if [ -z "${{ secrets.CLASPRC_JSON }}" ]; then
+            echo "Error: The CLASPRC_JSON secret is not set. Please add it to your repository's secrets."
+            exit 1
+          fi
           echo '${{ secrets.CLASPRC_JSON }}' > ~/.clasprc.json
 
       - name: Deploy to Google Apps Script
