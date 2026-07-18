@@ -54,7 +54,7 @@ const CleanupService = {
         }
       }
 
-      // Check Archive Rules (only if not trashed and is unread)
+      // Check Archive Rules (only if not trashed and is read)
       if (!actionTaken && thread.isUnread() === false) {
         for (const rule of CONFIG.RULES.ARCHIVE_RULES) {
           if (allLabels.includes(rule.label)) {
@@ -109,17 +109,17 @@ const CleanupService = {
    * @returns {boolean} True if it's safe to delete, false otherwise.
    */
   isSafeToDelete(thread, subject, threadLabelNames) {
-    if (thread.isStarred()) { Logger.debug(`Skipping starred thread: "${subject}"`); return false; }
-    if (thread.isImportant()) { Logger.debug(`Skipping important thread: "${subject}"`); return false; }
-    if (thread.isUnread()) { Logger.debug(`Skipping unread thread: "${subject}"`); return false; }
-
+    if (thread.isStarred()) { Logger.debug(`Skipping starred thread: "${subject}"`); return false; } // Fast check
+    if (thread.isImportant()) { Logger.debug(`Skipping important thread: "${subject}"`); return false; } // Fast check
+    if (thread.isUnread()) { Logger.debug(`Skipping unread thread: "${subject}"`); return false; } // Fast check
+    // Check labels before making an expensive API call. Also fixes a case-sensitivity bug.
+    if (threadLabelNames.some(label => SAFE_LABELS.includes(label.toLowerCase()))) { Logger.debug(`Skipping thread with safe label: "${subject}"`); return false; }
+    
+    // Only make an API call if all fast checks pass.
     const from = thread.getMessages()[0].getFrom().toLowerCase();
     const domain = Utils.getDomainFromEmail(from);
     if (SAFE_SENDER_EMAILS.includes(from)) { Logger.debug(`Skipping thread from safe sender "${from}": "${subject}"`); return false; }
     if (domain && SAFE_SENDER_DOMAINS.includes(domain)) { Logger.debug(`Skipping thread from safe domain "${domain}": "${subject}"`); return false; }
-
-    if (threadLabelNames.some(label => SAFE_LABELS.includes(label))) { Logger.debug(`Skipping thread with safe label: "${subject}"`); return false; }
-
     return true;
   },
 };

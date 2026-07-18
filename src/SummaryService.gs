@@ -7,9 +7,8 @@ const SummaryService = {
    * Generates and sends a summary report.
    * @param {string} period The reporting period (e.g., "Weekly", "Monthly").
    * @param {object} stats The statistics from the cleanup run.
-   * @param {number} runtimeInSeconds The total runtime of the script.
    */
-  sendSummaryReport(period, stats, runtimeInSeconds) {
+  sendSummaryReport(period, stats) {
     const recipient = CONFIG.REPORTING.SUMMARY_EMAIL;
     if (!recipient) {
       Logger.log('Summary email recipient not set. Skipping report.');

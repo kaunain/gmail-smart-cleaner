@@ -256,7 +256,7 @@ function _updateExecutionHistory(newRunStats) {
 function _sendSummaryReport(period) {
   const lastRun = getExecutionHistory()[0]; // Get the most recent run
   if (lastRun && lastRun.status === 'Success') {
-    SummaryService.sendSummaryReport(period, lastRun, lastRun.totalRuntime);
+    SummaryService.sendSummaryReport(period, lastRun);
   } else {
     Logger.log(`No successful run found in history. Skipping ${period.toLowerCase()} report.`);
   }
@@ -281,7 +281,10 @@ function _sendErrorNotification(subject, body) {
   if (!recipient) return;
 
   try {
-    MailApp.sendEmail(recipient, `[Gmail Smart Cleaner] ${subject}`, `A critical error occurred in the Gmail Smart Cleaner script:\n\n${body}`);
+    Utils.withRetry(
+      () => MailApp.sendEmail(recipient, `[Gmail Smart Cleaner] ${subject}`, `A critical error occurred in the Gmail Smart Cleaner script:\n\n${body}`),
+      'send error notification'
+    );
   } catch (e) {
     Logger.error('Failed to send error notification email.', e);
   }
