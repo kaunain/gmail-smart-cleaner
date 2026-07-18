@@ -3,6 +3,16 @@
  * Contains user-facing functions that can be run from the Apps Script editor or via triggers.
  */
 
+/**
+ * Web app entry point. Renders the execution dashboard.
+ * @param {GoogleAppsScript.Events.DoGet} e The event parameter.
+ * @returns {GoogleAppsScript.HTML.HtmlOutput} The HTML output for the page.
+ */
+function doGet(e) {
+  const template = HtmlService.createTemplateFromFile('DashboardTemplate');
+  return template.evaluate().setTitle('Gmail Smart Cleaner Dashboard').setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
+}
+
 // ==========================================================================
 // USER-FACING FUNCTIONS (for manual execution and setup)
 // ==========================================================================
@@ -29,6 +39,27 @@ function installTriggers() {
   Logger.log('Trigger installation complete.');
 }
 
+/**
+ * Performs a health check of the script's configuration and triggers.
+ * Can be run manually to diagnose issues.
+ */
+function runHealthCheck() {
+  Logger.log('====== Starting Health Check ======');
+  // 1. Validate configuration
+  const configErrors = Utils.validateConfig();
+  if (configErrors.length > 0) {
+    Logger.error('Configuration validation failed:');
+    configErrors.forEach(err => Logger.error(`- ${err}`));
+  } else {
+    Logger.log('Configuration validation passed.');
+  }
+
+  // 2. Check triggers (basic check)
+  const triggers = ScriptApp.getProjectTriggers();
+  Logger.log(`Found ${triggers.length} installed trigger(s). Run installTriggers() to reset if needed.`);
+  Logger.log('====== Health Check Complete ======');
+}
+
 // ==========================================================================
 // TRIGGER-DRIVEN FUNCTIONS (for automated execution)
 // ==========================================================================
@@ -44,6 +75,15 @@ function gmailCleanup() {
 
   if (!lockAcquired) {
     Logger.log('Could not acquire lock. Another instance is likely running. Exiting...');
+    return;
+  }
+
+  // Validate configuration before running
+  const configErrors = Utils.validateConfig();
+  if (configErrors.length > 0) {
+    const errorMsg = 'GmailCleanup stopped due to configuration errors.';
+    Logger.error(errorMsg);
+    _sendErrorNotification('Configuration Error', `${errorMsg}\n\n${configErrors.join('\n')}`);
     return;
   }
 
@@ -110,13 +150,94 @@ function gmailCleanup() {
     Logger.log(`Processed: ${stats.processedCount}, Labeled: ${stats.threadsLabeledCount}, Archived: ${stats.archivedCount}, Trashed: ${stats.trashedCount}, Skipped: ${stats.skippedCount}`);
     Logger.log(`Total runtime: ${totalRuntime} seconds.`);
 
-    properties.setProperty('lastRunStats', JSON.stringify({ ...stats, totalRuntime }));
+    _updateExecutionHistory({ ...stats, totalRuntime, status: 'Success', completedAt: new Date().toISOString() });
     properties.deleteProperty('cleanupState');
   } catch (e) {
     Logger.error('A critical error occurred during gmailCleanup.', e);
+    _sendErrorNotification('Script Failure: gmailCleanup', e.stack);
+    _updateExecutionHistory({ ...stats, status: 'Failure', error: e.message, completedAt: new Date().toISOString() });
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * Finds threads with large attachments and applies a label.
+ * Runs as a separate, less frequent process.
+ */
+function cleanupAttachments() {
+  if (!CONFIG.RULES.ATTACHMENT_CLEANUP.ENABLED) {
+    Logger.log('Attachment cleanup is disabled in the configuration.');
+    return;
+  }
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    Logger.log('Could not acquire lock for attachment cleanup. Exiting.');
+    return;
+  }
+
+  Logger.log('====== Starting Attachment Cleanup ======');
+  const { MIN_SIZE_MB, OLDER_THAN_DAYS, LABEL } = CONFIG.RULES.ATTACHMENT_CLEANUP;
+  const searchQuery = `has:attachment larger:${MIN_SIZE_MB}m older_than:${OLDER_THAN_DAYS}d -label:"${LABEL}"`;
+
+  try {
+    const label = GmailApp.getUserLabelByName(LABEL);
+    if (!label) {
+      Logger.error(`Attachment cleanup label "${LABEL}" does not exist. Please run initial setup.`);
+      return;
+    }
+
+    const threads = GmailApp.search(searchQuery, 0, CONFIG.EXECUTION.BATCH_SIZE);
+    if (threads.length === 0) {
+      Logger.log('No new threads with large attachments found.');
+      return;
+    }
+
+    Logger.log(`Found ${threads.length} threads with attachments larger than ${MIN_SIZE_MB}MB.`);
+
+    if (CONFIG.EXECUTION.DRY_RUN) {
+      Logger.log(`[DRY RUN] Would apply label "${LABEL}" to ${threads.length} threads.`);
+    } else {
+      Utils.withRetry(() => label.addToThreads(threads), `apply label "${LABEL}" to ${threads.length} threads`);
+      Logger.log(`Successfully labeled ${threads.length} threads.`);
+    }
+  } catch (e) {
+    Logger.error('A critical error occurred during cleanupAttachments.', e);
+    _sendErrorNotification('Script Failure: cleanupAttachments', e.stack);
+  } finally {
+    lock.releaseLock();
+    Logger.log('====== Attachment Cleanup Complete ======');
+  }
+}
+
+/**
+ * Retrieves the execution history for the dashboard.
+ * This function is called from the HTML template.
+ * @returns {object[]} An array of execution history objects.
+ */
+function getExecutionHistory() {
+  const properties = PropertiesService.getScriptProperties();
+  const history = JSON.parse(properties.getProperty('executionHistory') || '[]');
+  return history;
+}
+
+/**
+ * Updates the execution history in PropertiesService.
+ * @param {object} newRunStats The statistics of the completed run.
+ * @private
+ */
+function _updateExecutionHistory(newRunStats) {
+  const properties = PropertiesService.getScriptProperties();
+  const history = getExecutionHistory();
+  history.unshift(newRunStats); // Add new run to the beginning
+
+  // Keep history limited to the configured count
+  const trimmedHistory = history.slice(0, CONFIG.EXECUTION.EXECUTION_HISTORY_COUNT);
+
+  properties.setProperty('executionHistory', JSON.stringify(trimmedHistory));
+  // Also set last run for summary reports
+  properties.setProperty('lastRunStats', JSON.stringify(newRunStats));
 }
 
 /**
@@ -125,12 +246,11 @@ function gmailCleanup() {
  * @private
  */
 function _sendSummaryReport(period) {
-  const statsJson = PropertiesService.getScriptProperties().getProperty('lastRunStats');
-  if (statsJson) {
-    const lastRun = JSON.parse(statsJson);
+  const lastRun = getExecutionHistory()[0]; // Get the most recent run
+  if (lastRun && lastRun.status === 'Success') {
     SummaryService.sendSummaryReport(period, lastRun, lastRun.totalRuntime);
   } else {
-    Logger.log(`No stats found for the last run. Skipping ${period.toLowerCase()} report.`);
+    Logger.log(`No successful run found in history. Skipping ${period.toLowerCase()} report.`);
   }
 }
 
@@ -140,4 +260,21 @@ function sendWeeklySummary() {
 
 function sendMonthlySummary() {
   _sendSummaryReport('Monthly');
+}
+
+/**
+ * Sends an email notification about a critical script error.
+ * @param {string} subject The subject of the error email.
+ * @param {string} body The body of the error email, typically the error stack.
+ * @private
+ */
+function _sendErrorNotification(subject, body) {
+  const recipient = CONFIG.REPORTING.ERROR_REPORT_EMAIL;
+  if (!recipient) return;
+
+  try {
+    MailApp.sendEmail(recipient, `[Gmail Smart Cleaner] ${subject}`, `A critical error occurred in the Gmail Smart Cleaner script:\n\n${body}`);
+  } catch (e) {
+    Logger.error('Failed to send error notification email.', e);
+  }
 }

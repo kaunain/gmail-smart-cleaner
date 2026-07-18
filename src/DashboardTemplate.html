@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link rel="stylesheet" href="https://ssl.gstatic.com/docs/script/css/add-ons1.css">
+    <style>
+      .container { padding: 20px; }
+      h1, h2 { margin-top: 0; }
+      table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+      th, td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; }
+      th { font-weight: bold; }
+      .status-success { color: green; }
+      .status-failure { color: red; }
+      .error-details { font-family: monospace; font-size: 11px; color: #666; }
+      .timestamp { font-size: 12px; color: #555; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Gmail Smart Cleaner Dashboard</h1>
+      <p>This dashboard shows the history of the last 10 script executions.</p>
+
+      <h2>Execution History</h2>
+
+      <? var history = getExecutionHistory(); ?>
+      <? if (history.length === 0) { ?>
+        <p>No execution history found. The script may not have completed a run yet.</p>
+      <? } else { ?>
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Date</th>
+              <th>Runtime</th>
+              <th>Processed</th>
+              <th>Labeled</th>
+              <th>Archived</th>
+              <th>Trashed</th>
+              <th>Skipped</th>
+            </tr>
+          </thead>
+          <tbody>
+            <? for (var i = 0; i < history.length; i++) { ?>
+              <? var run = history[i]; ?>
+              <tr>
+                <td>
+                  <span class="status-<?= run.status.toLowerCase() ?>"><?= run.status ?></span>
+                  <? if (run.status === 'Failure') { ?>
+                    <div class="error-details" title="<?= run.error ?>">Hover for error</div>
+                  <? } ?>
+                </td>
+                <td class="timestamp"><?= new Date(run.completedAt).toLocaleString() ?></td>
+                <td><?= run.totalRuntime || 'N/A' ?>s</td>
+                <td><?= run.processedCount || 0 ?></td>
+                <td><?= run.threadsLabeledCount || 0 ?></td>
+                <td><?= run.archivedCount || 0 ?></td>
+                <td><?= run.trashedCount || 0 ?></td>
+                <td><?= run.skippedCount || 0 ?></td>
+              </tr>
+            <? } ?>
+          </tbody>
+        </table>
+      <? } ?>
+
+      <h2>Actions</h2>
+      <p>You can manually run setup functions from the Apps Script editor:</p>
+      <ul>
+        <li><code>runInitialSetup()</code>: To create all required labels.</li>
+        <li><code>installTriggers()</code>: To install or reset all automation triggers.</li>
+        <li><code>runHealthCheck()</code>: To validate your configuration.</li>
+      </ul>
+
+      <p style="margin-top: 20px; font-size: 11px; color: #888;">
+        To view this dashboard, you need to deploy the script as a web app.
+        After deploying, the URL will be available in the "Deployments" section of the Apps Script editor.
+      </p>
+
+    </div>
+  </body>
+</html>

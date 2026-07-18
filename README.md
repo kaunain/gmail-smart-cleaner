@@ -1,12 +1,22 @@
 # Gmail Smart Cleaner
 
-A production-ready Google Apps Script to automatically organize, label, and clean your Gmail inbox. This project is designed for developers, providing a robust, scalable, and fully automated solution that you can set up once and forget.
+<p align="center">
+  <a href="https://script.google.com">
+    <img src="https://img.shields.io/badge/Built%20with-Google%20Apps%20Script-4285F4.svg" alt="Built with Google Apps Script">
+  </a>
+  <a href="https://github.com/kaunain/gmail-smart-cleaner/actions/workflows/deploy.yml">
+    <img src="https://github.com/kaunain/gmail-smart-cleaner/actions/workflows/deploy.yml/badge.svg" alt="Deploy to Apps Script">
+  </a>
+  <a href="https://github.com/kaunain/gmail-smart-cleaner/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/kaunain/gmail-smart-cleaner" alt="License">
+  </a>
+</p>
 
-[![Deploy to Apps Script](https://github.com/kaunain/gmail-smart-cleaner/actions/workflows/deploy.yml/badge.svg)](https://github.com/kaunain/gmail-smart-cleaner/actions/workflows/deploy.yml)
+A production-ready Google Apps Script to automatically organize, label, and clean your Gmail inbox. This project is designed for developers, providing a robust, scalable, and fully automated solution that you can set up once and forget.
 
 ---
 
-## Features
+## ✨ Features
 
 -   **Smart Labeling**: Automatically classifies and labels emails from services like GitHub, LinkedIn, Amazon, banks, and more.
 -   **Automated Cleanup**: Moves old OTPs, promotions, and social media emails to the trash based on configurable timeframes.
@@ -16,10 +26,14 @@ A production-ready Google Apps Script to automatically organize, label, and clea
 -   **Automated Reporting**: Sends weekly and monthly HTML summary reports of its activity directly to your email.
 -   **CI/CD Ready**: Comes with a complete GitHub Actions workflow for automatic deployment on every `git push`.
 -   **VS Code Ready**: Full support for local development with `@google/clasp` and TypeScript type definitions for autocompletion.
+-   **Execution Dashboard**: A simple web app to view the history and status of recent script runs.
+-   **Attachment Cleanup**: Automatically finds and labels emails with large attachments.
+-   **Robust Error Handling**: Includes retry logic with exponential backoff for API calls and sends email notifications on critical failures.
+-   **Health Check**: A manual trigger to validate your configuration and check trigger status.
 
 ---
 
-## Project Structure
+## 🏗️ Project Structure
 
 All application code resides in the `/src` directory.
 
@@ -39,7 +53,7 @@ All application code resides in the `/src` directory.
 
 ---
 
-## Installation & Deployment
+## 🚀 Installation & Deployment
 
 This guide provides a professional setup using `clasp`, a command-line tool for managing Apps Script projects. This allows you to use your favorite code editor (like VS Code) and version control (Git).
 
@@ -98,9 +112,19 @@ This guide provides a professional setup using `clasp`, a command-line tool for 
 
 Your Gmail Smart Cleaner is now fully configured and automated!
 
+### Step 3: Deploy as a Web App (for Dashboard)
+
+1.  In the Apps Script editor, click **Deploy** > **New deployment**.
+2.  Click the "Select type" gear icon and choose **Web app**.
+3.  In the configuration:
+    -   Give it a description (e.g., "v1.0 Dashboard").
+    -   Execute as: **Me**.
+    -   Who has access: **Only myself**.
+4.  Click **Deploy**. You will be given a URL for your web app dashboard.
+
 ---
 
-## CI/CD with GitHub Actions (Optional)
+## 🤖 CI/CD with GitHub Actions (Optional)
 
 Set up a CI/CD pipeline to automatically deploy changes to Apps Script whenever you push to your `main` branch on GitHub.
 
@@ -128,7 +152,7 @@ Now, every time you `git push` to your `main` branch, the GitHub Action will aut
 
 ---
 
-## Configuration
+## ⚙️ Configuration
 
 All settings are centralized in `src/Config.gs`.
 
@@ -140,6 +164,16 @@ All settings are centralized in `src/Config.gs`.
 
 ---
 
-## License
+## 🤝 Contributing
+
+Contributions, issues, and feature requests are welcome! Feel free to check the issues page. Please read our contributing guide for more details.
+
+---
+
+## 📜 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+---
+
+*This project is not created by, affiliated with, or supported by Google LLC.*

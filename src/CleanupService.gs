@@ -75,17 +75,26 @@ const CleanupService = {
       });
     } else {
       if (threadsToTrash.length > 0) {
-        GmailApp.moveThreadsToTrash(threadsToTrash);
+        Utils.withRetry(
+          () => GmailApp.moveThreadsToTrash(threadsToTrash),
+          `trash ${threadsToTrash.length} threads`
+        );
         Logger.log(`Trashed ${threadsToTrash.length} threads.`);
       }
       if (threadsToArchive.length > 0) {
-        GmailApp.moveThreadsToArchive(threadsToArchive);
+        Utils.withRetry(
+          () => GmailApp.moveThreadsToArchive(threadsToArchive),
+          `archive ${threadsToArchive.length} threads`
+        );
         Logger.log(`Archived ${threadsToArchive.length} threads.`);
       }
       labelMap.forEach((threads, labelName) => {
         const label = GmailApp.getUserLabelByName(labelName);
         if (label) {
-          label.addToThreads(threads);
+          Utils.withRetry(
+            () => label.addToThreads(threads),
+            `apply label "${labelName}" to ${threads.length} threads`
+          );
           Logger.log(`Applied label "${labelName}" to ${threads.length} threads.`);
         }
       });

@@ -48,6 +48,27 @@ const CONFIG = {
      * is recommended to avoid processing recent mail and improve performance.
      */
     SEARCH_OLDER_THAN_DAYS: 90,
+
+    /**
+     * @type {number}
+     * The number of past execution summaries to store for the dashboard.
+     */
+    EXECUTION_HISTORY_COUNT: 10,
+
+    /**
+     * @type {{MAX_RETRIES: number, INITIAL_BACKOFF_MS: number}}
+     * Configuration for the exponential backoff retry mechanism for failed API calls.
+     */
+    RETRY_OPTIONS: {
+      MAX_RETRIES: 5,
+      INITIAL_BACKOFF_MS: 2000,
+    },
+
+    /**
+     * @type {number}
+     * Cache duration in seconds for things like the user's label list.
+     */
+    CACHE_EXPIRATION_SECONDS: 3600, // 1 hour
   },
 
   // ==========================================================================
@@ -60,6 +81,14 @@ const CONFIG = {
      * Leave empty ('') to disable email reports.
      */
     SUMMARY_EMAIL: Session.getEffectiveUser().getEmail(),
+
+    /**
+     * @type {string}
+     * The email address to send critical error notifications to.
+     * If empty, no error notifications will be sent. It's highly recommended
+     * to set this to your primary email address.
+     */
+    ERROR_REPORT_EMAIL: Session.getEffectiveUser().getEmail(),
   },
 
   // ==========================================================================
@@ -116,6 +145,7 @@ const CONFIG = {
       'Important', // A generic important label
       'Promotions', // For promotion-type emails
       'Forums', // For forum/group discussions
+      'Large Attachments',
     ],
   },
 
@@ -145,6 +175,22 @@ const CONFIG = {
       { label: 'Social' },
       { label: 'Forums' },
     ],
+
+    /**
+     * Rules for handling large attachments. The script will find threads with
+     * attachments larger than the specified size and apply a label.
+     * You can then create a TRASH_RULE for this label if you want to delete them.
+     * Note: This runs as a separate, less frequent process.
+     */
+    ATTACHMENT_CLEANUP: {
+      ENABLED: true,
+      // Find attachments larger than 10MB. Gmail search supports 'k' and 'm'.
+      MIN_SIZE_MB: 10,
+      // Apply this label to threads with large attachments.
+      LABEL: 'Large Attachments',
+      // Process threads older than this many days.
+      OLDER_THAN_DAYS: 365,
+    },
   },
 
   // ==========================================================================

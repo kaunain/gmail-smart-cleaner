@@ -42,6 +42,12 @@ const TriggerService = {
     ScriptApp.newTrigger('sendMonthlySummary').timeBased().onMonthDay(1).atHour(5).create();
     Logger.log('Installed monthly trigger for "sendMonthlySummary" to run on the 1st of each month around 5 AM.');
 
+    // Weekly attachment cleanup trigger
+    if (CONFIG.RULES.ATTACHMENT_CLEANUP.ENABLED) {
+      ScriptApp.newTrigger('cleanupAttachments').timeBased().onWeekDay(ScriptApp.WeekDay.SATURDAY).atHour(3).create();
+      Logger.log('Installed weekly trigger for "cleanupAttachments" to run on Saturdays around 3 AM.');
+    }
+
     Logger.log('All triggers installed successfully.');
   },
 };
