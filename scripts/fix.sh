@@ -6,10 +6,7 @@
 
 set -e # Exit immediately if a command exits with a non-zero status.
 
-echo "🎨 Formatting code with Prettier..."
-npm run format
-
-echo "✅ Fixing linting issues with ESLint..."
+echo "✅ Formatting and fixing lint issues..."
 npm run lint:fix
 
 echo "🔍 Checking for outdated dependencies..."
