@@ -70,6 +70,14 @@ function runHealthCheck() {
  * It's designed to be resumable to handle large inboxes without timing out.
  */
 function gmailCleanup() {
+  // Pre-flight check to ensure the Advanced Gmail Service is enabled.
+  if (typeof Gmail === 'undefined') {
+    const errorMessage = 'The Advanced Gmail Service is not enabled. Please open the Apps Script editor, go to "Services +", and add the "Gmail API".';
+    Logger.error(errorMessage);
+    _sendErrorNotification('Configuration Error: Advanced Service Disabled', errorMessage);
+    return;
+  }
+
   const lock = LockService.getScriptLock();
   const lockAcquired = lock.tryLock(10000); // Wait 10 seconds for lock
 
