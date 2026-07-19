@@ -13,8 +13,8 @@
     "open": "clasp open",
     "webapp": "clasp open --webapp",
     "format": "prettier --write \"**/*.{js,gs,json,md,html}\"",
-    "lint": "eslint . --ext .js,.gs",
-    "lint:fix": "eslint . --ext .js,.gs --fix",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
     "release": "semantic-release",
     "fix": "bash scripts/fix.sh"
   },
