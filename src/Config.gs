@@ -118,6 +118,14 @@ const CONFIG = {
      * 'Work', and 'Bills' to this list.
      */
     PROTECTED_LABELS: ['Insurance', 'Investments', 'Personal', 'Important'],
+
+    /**
+     * @type {boolean}
+     * If true, allows the script to trash unread emails that match TRASH_RULES.
+     * By default this is false to prevent accidental deletion of new, unread mail.
+     * USE WITH CAUTION.
+     */
+    ALLOW_DELETING_UNREAD: true,
   },
 
   // ==========================================================================
@@ -146,6 +154,7 @@ const CONFIG = {
       'Promotions', // For promotion-type emails
       'Forums', // For forum/group discussions
       'Large Attachments',
+      'Junk Mail', // For specific senders you want to trash
     ],
   },
 
@@ -161,8 +170,9 @@ const CONFIG = {
      */
     TRASH_RULES: [
       { label: 'OTP', days: 7 },
-      { label: 'Promotions', days: 180 },
-      { label: 'Social', days: 365 },
+      { label: 'Promotions', days: 30 },
+      { label: 'Social', days: 90 },
+      { label: 'Junk Mail', days: 7 },
     ],
 
     /**
@@ -208,6 +218,9 @@ const CONFIG = {
    * `isPriority`: (Optional) If true, stop processing further rules for this email.
    */
   CLASSIFICATION_RULES: [
+    // --- Custom Junk Mail ---
+    { criteria: { from: 'newsletter@annoying.com' }, label: 'Junk Mail', isPriority: true },
+
     // --- Work & Development ---
     { criteria: { domain: 'github.com' }, label: 'Work' },
     { criteria: { domain: 'gitlab.com' }, label: 'Work' },

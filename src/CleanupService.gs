@@ -113,7 +113,7 @@ const CleanupService = {
   isSafeToDelete(thread, subject, threadLabelNames, from, domain) {
     if (thread.isStarred()) { Logger.debug(`Skipping starred thread: "${subject}"`); return false; } // Fast check
     if (thread.isImportant()) { Logger.debug(`Skipping important thread: "${subject}"`); return false; } // Fast check
-    if (thread.isUnread()) { Logger.debug(`Skipping unread thread: "${subject}"`); return false; } // Fast check
+    if (!CONFIG.SAFETY.ALLOW_DELETING_UNREAD && thread.isUnread()) { Logger.debug(`Skipping unread thread as per safety config: "${subject}"`); return false; }
     // Check labels before making an expensive API call. Also fixes a case-sensitivity bug.
     if (threadLabelNames.some(label => SAFE_LABELS.includes(label.toLowerCase()))) { Logger.debug(`Skipping thread with safe label: "${subject}"`); return false; }
     if (SAFE_SENDER_EMAILS.includes(from)) { Logger.debug(`Skipping thread from safe sender "${from}": "${subject}"`); return false; }
