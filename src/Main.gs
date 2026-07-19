@@ -139,7 +139,7 @@ function gmailCleanup() {
 
       if (response.threads && response.threads.length > 0) {
         const threadIds = response.threads.map(t => t.id);
-        threads = GmailApp.getThreadsByIds(threadIds);
+        threads = threadIds.map(id => GmailApp.getThreadById(id));
         Logger.log(`Processing a batch of ${threads.length} threads.`);
         CleanupService.processThreads(threads, stats);
       } else {
@@ -218,7 +218,7 @@ function cleanupAttachments() {
 
       if (response.threads && response.threads.length > 0) {
         const threadIds = response.threads.map(t => t.id);
-        const threads = GmailApp.getThreadsByIds(threadIds);
+        const threads = threadIds.map(id => GmailApp.getThreadById(id));
         Logger.log(`Found a batch of ${threads.length} threads with attachments larger than ${MIN_SIZE_MB}MB.`);
 
         if (CONFIG.EXECUTION.DRY_RUN) {
