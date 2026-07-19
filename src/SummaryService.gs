@@ -46,7 +46,7 @@ const SummaryService = {
     const template = HtmlService.createTemplateFromFile('SummaryReportTemplate');
     template.period = period;
     template.stats = stats;
-    template.runtime = stats.totalRuntime;
+    template.runtime = stats.totalRuntime || 0;
     template.runDate = new Date().toLocaleDateString();
     return template.evaluate().getContent();
   },

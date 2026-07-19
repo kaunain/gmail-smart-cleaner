@@ -2,79 +2,77 @@
 <html>
   <head>
     <base target="_top">
-    <link rel="stylesheet" href="https://ssl.gstatic.com/docs/script/css/add-ons1.css">
     <style>
-      .container { padding: 20px; }
-      h1, h2 { margin-top: 0; }
-      table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-      th, td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; }
-      th { font-weight: bold; }
-      .status-success { color: green; }
-      .status-failure { color: red; }
-      .error-details { font-family: monospace; font-size: 11px; color: #666; }
-      .timestamp { font-size: 12px; color: #555; }
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background-color: #f7f9fc; color: #3c4043; }
+      .header { background-color: #4285F4; color: white; padding: 20px 40px; font-size: 24px; font-weight: 400; }
+      .container { padding: 20px 40px; }
+      h2 { font-weight: 500; color: #202124; border-bottom: 1px solid #dadce0; padding-bottom: 10px; }
+      .card { background-color: white; border: 1px solid #dadce0; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 2px 0 rgba(60,64,67,0.302), 0 1px 3px 1px rgba(60,64,67,0.149); }
+      .card-header { padding: 16px; border-bottom: 1px solid #dadce0; font-size: 16px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; }
+      .card-body { padding: 16px; }
+      .status { padding: 4px 8px; border-radius: 16px; font-size: 12px; font-weight: 500; }
+      .status.success { background-color: #e6f4ea; color: #1e8e3e; }
+      .status.failure { background-color: #fce8e6; color: #d93025; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { text-align: left; padding: 12px 0; border-bottom: 1px solid #e8eaed; }
+      th { font-weight: 500; color: #5f6368; }
+      tr:last-child td { border-bottom: none; }
+      .error-details { background-color: #f8f9fa; border: 1px solid #dadce0; padding: 10px; margin-top: 10px; font-family: "Roboto Mono", monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+      .no-history { text-align: center; padding: 40px; color: #5f6368; }
     </style>
   </head>
   <body>
-    <div class="container">
-      <h1>Gmail Smart Cleaner Dashboard</h1>
-      <p>This dashboard shows the history of the last 10 script executions.</p>
+    <div class="header">
+      Gmail Smart Cleaner Dashboard
+    </div>
 
+    <div class="container">
       <h2>Execution History</h2>
 
-      <? var history = getExecutionHistory(); ?>
-      <? if (history.length === 0) { ?>
-        <p>No execution history found. The script may not have completed a run yet.</p>
+      <? const history = getExecutionHistory(); ?>
+      <? if (history.length > 0) { ?>
+        <? for (const run of history) { ?>
+          <div class="card">
+            <div class="card-header">
+              <span>Run completed on <?= new Date(run.completedAt).toLocaleString() ?></span>
+              <span class="status <?= run.status.toLowerCase() ?>"><?= run.status ?></span>
+            </div>
+            <div class="card-body">
+              <table>
+                <tr>
+                  <td>Threads Processed</td>
+                  <td><?= run.processedCount || 0 ?></td>
+                </tr>
+                <tr>
+                  <td>Threads Labeled</td>
+                  <td><?= run.threadsLabeledCount || 0 ?></td>
+                </tr>
+                <tr>
+                  <td>Threads Archived</td>
+                  <td><?= run.archivedCount || 0 ?></td>
+                </tr>
+                <tr>
+                  <td>Threads Trashed</td>
+                  <td><?= run.trashedCount || 0 ?></td>
+                </tr>
+                 <tr>
+                  <td>Total Runtime</td>
+                  <td><?= run.totalRuntime || 0 ?> seconds</td>
+                </tr>
+              </table>
+              <? if (run.status === 'Failure' && run.error) { ?>
+                <div class="error-details"><strong>Error:</strong> <?= run.error ?></div>
+              <? } ?>
+            </div>
+          </div>
+        <? } ?>
       <? } else { ?>
-        <table>
-          <thead>
-            <tr>
-              <th>Status</th>
-              <th>Date</th>
-              <th>Runtime</th>
-              <th>Processed</th>
-              <th>Labeled</th>
-              <th>Archived</th>
-              <th>Trashed</th>
-              <th>Skipped</th>
-            </tr>
-          </thead>
-          <tbody>
-            <? for (var i = 0; i < history.length; i++) { ?>
-              <? var run = history[i]; ?>
-              <tr>
-                <td>
-                  <span class="status-<?= run.status.toLowerCase() ?>"><?= run.status ?></span>
-                  <? if (run.status === 'Failure') { ?>
-                    <div class="error-details" title="<?= run.error ?>">Hover for error</div>
-                  <? } ?>
-                </td>
-                <td class="timestamp"><?= new Date(run.completedAt).toLocaleString() ?></td>
-                <td><?= run.totalRuntime || 'N/A' ?>s</td>
-                <td><?= run.processedCount || 0 ?></td>
-                <td><?= run.threadsLabeledCount || 0 ?></td>
-                <td><?= run.archivedCount || 0 ?></td>
-                <td><?= run.trashedCount || 0 ?></td>
-                <td><?= run.skippedCount || 0 ?></td>
-              </tr>
-            <? } ?>
-          </tbody>
-        </table>
+        <div class="card">
+          <div class="card-body no-history">
+            No execution history found. The script may not have run yet.
+          </div>
+        </div>
       <? } ?>
-
-      <h2>Actions</h2>
-      <p>You can manually run setup functions from the Apps Script editor:</p>
-      <ul>
-        <li><code>runInitialSetup()</code>: To create all required labels.</li>
-        <li><code>installTriggers()</code>: To install or reset all automation triggers.</li>
-        <li><code>runHealthCheck()</code>: To validate your configuration.</li>
-      </ul>
-
-      <p style="margin-top: 20px; font-size: 11px; color: #888;">
-        To view this dashboard, you need to deploy the script as a web app.
-        After deploying, the URL will be available in the "Deployments" section of the Apps Script editor.
-      </p>
-
     </div>
   </body>
 </html>
