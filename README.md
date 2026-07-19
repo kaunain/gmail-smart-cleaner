@@ -50,7 +50,6 @@ All application code resides in the `/src` directory.
 ---
 
 ## 🚀 Installation & Deployment
-
 This guide provides a professional setup using `clasp`, a command-line tool for managing Apps Script projects. This allows you to use your favorite code editor (like VS Code) and version control (Git).
 
 ### Prerequisites
@@ -94,17 +93,21 @@ This guide provides a professional setup using `clasp`, a command-line tool for 
 
 ### Step 2: First Run & Configuration
 
-1.  **Initial Run**: In the Apps Script editor, select the `runInitialSetup` function from the dropdown menu and click **Run**.
+1.  **Enable Advanced Services**: In the Apps Script editor, you need to enable the Gmail API for the script's core features to work.
+    -   On the left sidebar, click the **+** icon next to **Services**.
+    -   Select **Gmail API** from the list and click **Add**.
+
+2.  **Initial Run**: In the Apps Script editor, select the `runInitialSetup` function from the dropdown menu and click **Run**.
     -   You will be prompted to grant the necessary permissions (Gmail, etc.). Please review and accept them.
     -   This function will create all the necessary Gmail labels defined in `src/Config.gs`.
 
-2.  **Configure the Script**:
+3.  **Configure the Script**:
     -   Open `src/Config.gs` in your local code editor.
     -   Set `DRY_RUN: false` to allow the script to make changes.
     -   Customize `SAFE_SENDERS`, `SAFE_DOMAINS`, and other rules to fit your needs.
     -   Save the file and push the changes: `npm run push`.
 
-3.  **Install Triggers**: To automate the script, run the `installTriggers` function from the Apps Script editor. This will set up the daily cleanup and summary report triggers.
+4.  **Install Triggers**: To automate the script, run the `installTriggers` function from the Apps Script editor. This will set up the daily cleanup and summary report triggers.
 
 Your Gmail Smart Cleaner is now fully configured and automated!
 
