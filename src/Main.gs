@@ -134,7 +134,7 @@ function gmailCleanup() {
         listOptions.pageToken = currentToken;
       }
 
-      const response = Gmail.Users.threads.list('me', listOptions);
+      const response = Gmail.Users.Threads.list('me', listOptions);
       currentToken = response.nextPageToken;
 
       if (response.threads && response.threads.length > 0) {
@@ -204,20 +204,39 @@ function cleanupAttachments() {
       return;
     }
 
-    const threads = GmailApp.search(searchQuery, 0, CONFIG.EXECUTION.BATCH_SIZE);
-    if (threads.length === 0) {
-      Logger.log('No new threads with large attachments found.');
-      return;
-    }
+    let pageToken = null;
+    let totalLabeled = 0;
+    do {
+      const listOptions = {
+        q: searchQuery,
+        maxResults: CONFIG.EXECUTION.BATCH_SIZE,
+        pageToken: pageToken,
+      };
 
-    Logger.log(`Found ${threads.length} threads with attachments larger than ${MIN_SIZE_MB}MB.`);
+      const response = Gmail.Users.Threads.list('me', listOptions);
+      pageToken = response.nextPageToken;
 
-    if (CONFIG.EXECUTION.DRY_RUN) {
-      Logger.log(`[DRY RUN] Would apply label "${LABEL}" to ${threads.length} threads.`);
-    } else {
-      Utils.withRetry(() => label.addToThreads(threads), `apply label "${LABEL}" to ${threads.length} threads`);
-      Logger.log(`Successfully labeled ${threads.length} threads.`);
-    }
+      if (response.threads && response.threads.length > 0) {
+        const threadIds = response.threads.map(t => t.id);
+        const threads = GmailApp.getThreadsByIds(threadIds);
+        Logger.log(`Found a batch of ${threads.length} threads with attachments larger than ${MIN_SIZE_MB}MB.`);
+
+        if (CONFIG.EXECUTION.DRY_RUN) {
+          Logger.log(`[DRY RUN] Would apply label "${LABEL}" to ${threads.length} threads.`);
+        } else {
+          Utils.withRetry(() => label.addToThreads(threads), `apply label "${LABEL}" to ${threads.length} threads`);
+          Logger.log(`Successfully labeled ${threads.length} threads.`);
+        }
+        totalLabeled += threads.length;
+      }
+
+      if (Utils.isTimeRunningOut()) {
+        Logger.log('Approaching execution time limit during attachment cleanup. Pausing. Will continue on next scheduled run.');
+        break;
+      }
+    } while (pageToken);
+
+    if (totalLabeled === 0) Logger.log('No new threads with large attachments found.');
   } catch (e) {
     Logger.error('A critical error occurred during cleanupAttachments.', e);
     _sendErrorNotification('Script Failure: cleanupAttachments', e.stack);
