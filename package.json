@@ -16,7 +16,7 @@
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "release": "semantic-release",
-    "fix": "bash scripts/fix.sh"
+    "fix": "npm run lint:fix"
   },
   "devDependencies": {
     "@google/clasp": "^2.4.2",

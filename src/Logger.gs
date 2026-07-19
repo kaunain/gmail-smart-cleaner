@@ -8,7 +8,7 @@ const Logger = {
    * @param {string} message The message to log.
    */
   log(message) {
-    Logger.log(`[INFO] ${message}`);
+    console.log(`[INFO] ${message}`);
   },
 
   /**
@@ -17,7 +17,7 @@ const Logger = {
    */
   debug(message) {
     if (CONFIG.EXECUTION.DEBUG) {
-      Logger.log(`[DEBUG] ${message}`);
+      console.log(`[DEBUG] ${message}`);
     }
   },
 
