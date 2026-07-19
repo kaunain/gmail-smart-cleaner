@@ -54,7 +54,7 @@ This guide provides a professional setup using `clasp`, a command-line tool for 
 
 ### Prerequisites
 
-1.  **Node.js**: Version 22 LTS or higher.
+1.  **Node.js**: Version 22 LTS or higher. If you use [nvm](https://github.com/nvm-sh/nvm), you can run `nvm use` in the project directory to automatically switch to the correct version.
 2.  **Google Account**: The Gmail account you want to clean.
 
 ### Step 1: Local Setup

@@ -15,7 +15,8 @@
     "format": "prettier --write \"**/*.{js,gs,json,md,html}\"",
     "lint": "eslint . --ext .js,.gs",
     "lint:fix": "eslint . --ext .js,.gs --fix",
-    "release": "semantic-release"
+    "release": "semantic-release",
+    "fix": "bash scripts/fix.sh"
   },
   "devDependencies": {
     "@google/clasp": "^2.4.2",
