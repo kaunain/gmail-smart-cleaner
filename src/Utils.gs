@@ -73,12 +73,17 @@ const Utils = {
         return fn();
       } catch (e) {
         const isLastAttempt = i === MAX_RETRIES - 1;
-        Logger.error(`Operation "${description}" failed on attempt ${i + 1}. Error: ${e.message}`);
+        Logger.error(
+          `Operation "${description}" failed on attempt ${i + 1}. Error: ${e.message}`
+        );
         if (isLastAttempt) {
-          Logger.error(`All ${MAX_RETRIES} retries failed for "${description}". Rethrowing error.`);
+          Logger.error(
+            `All ${MAX_RETRIES} retries failed for "${description}". Rethrowing error.`
+          );
           throw e;
         }
-        const backoffTime = INITIAL_BACKOFF_MS * Math.pow(2, i) + Math.random() * 1000;
+        const backoffTime =
+          INITIAL_BACKOFF_MS * Math.pow(2, i) + Math.random() * 1000;
         Logger.log(`Retrying in ${Math.round(backoffTime / 1000)}s...`);
         this.sleep(backoffTime / 1000);
       }
@@ -94,25 +99,37 @@ const Utils = {
     if (CONFIG.EXECUTION.BATCH_SIZE <= 0 || CONFIG.EXECUTION.BATCH_SIZE > 500) {
       errors.push('EXECUTION.BATCH_SIZE must be between 1 and 500.');
     }
-    if (CONFIG.EXECUTION.MAX_RUNTIME < 60 || CONFIG.EXECUTION.MAX_RUNTIME > 540) {
-      errors.push('EXECUTION.MAX_RUNTIME should be between 60 and 540 seconds.');
+    if (
+      CONFIG.EXECUTION.MAX_RUNTIME < 60 ||
+      CONFIG.EXECUTION.MAX_RUNTIME > 540
+    ) {
+      errors.push(
+        'EXECUTION.MAX_RUNTIME should be between 60 and 540 seconds.'
+      );
     }
-    if (CONFIG.RULES.ATTACHMENT_CLEANUP.ENABLED && CONFIG.RULES.ATTACHMENT_CLEANUP.MIN_SIZE_MB <= 0) {
+    if (
+      CONFIG.RULES.ATTACHMENT_CLEANUP.ENABLED &&
+      CONFIG.RULES.ATTACHMENT_CLEANUP.MIN_SIZE_MB <= 0
+    ) {
       errors.push('ATTACHMENT_CLEANUP.MIN_SIZE_MB must be greater than 0.');
     }
     // Check that all labels in rules exist in REQUIRED_LABELS
     const allRuleLabels = [
-      ...CONFIG.RULES.TRASH_RULES.map(r => r.label),
-      ...CONFIG.RULES.ARCHIVE_RULES.map(r => r.label),
-      ...CONFIG.CLASSIFICATION_RULES.map(r => r.label),
+      ...CONFIG.RULES.TRASH_RULES.map((r) => r.label),
+      ...CONFIG.RULES.ARCHIVE_RULES.map((r) => r.label),
+      ...CONFIG.CLASSIFICATION_RULES.map((r) => r.label),
     ];
     if (CONFIG.RULES.ATTACHMENT_CLEANUP.ENABLED) {
       allRuleLabels.push(CONFIG.RULES.ATTACHMENT_CLEANUP.LABEL);
     }
     const requiredLabels = CONFIG.LABELS.REQUIRED_LABELS;
-    const missingLabels = [...new Set(allRuleLabels)].filter(l => !requiredLabels.includes(l));
+    const missingLabels = [...new Set(allRuleLabels)].filter(
+      (l) => !requiredLabels.includes(l)
+    );
     if (missingLabels.length > 0) {
-      errors.push(`The following labels are used in rules but not defined in LABELS.REQUIRED_LABELS: ${missingLabels.join(', ')}`);
+      errors.push(
+        `The following labels are used in rules but not defined in LABELS.REQUIRED_LABELS: ${missingLabels.join(', ')}`
+      );
     }
 
     return errors;

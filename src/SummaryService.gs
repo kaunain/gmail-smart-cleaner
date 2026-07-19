@@ -26,12 +26,20 @@ const SummaryService = {
     } else {
       try {
         Utils.withRetry(
-          () => MailApp.sendEmail({ to: recipient, subject: subject, htmlBody: htmlBody }),
+          () =>
+            MailApp.sendEmail({
+              to: recipient,
+              subject: subject,
+              htmlBody: htmlBody,
+            }),
           `send ${period} summary report`
         );
         Logger.log(`${period} summary report sent successfully.`);
       } catch (e) {
-        Logger.error(`Failed to send summary email to ${recipient} after multiple retries.`, e);
+        Logger.error(
+          `Failed to send summary email to ${recipient} after multiple retries.`,
+          e
+        );
       }
     }
   },
@@ -43,7 +51,9 @@ const SummaryService = {
    * @returns {string} The HTML content of the report.
    */
   createHtmlReport(period, stats) {
-    const template = HtmlService.createTemplateFromFile('SummaryReportTemplate');
+    const template = HtmlService.createTemplateFromFile(
+      'SummaryReportTemplate'
+    );
     template.period = period;
     template.stats = stats;
     template.runtime = stats.totalRuntime || 0;

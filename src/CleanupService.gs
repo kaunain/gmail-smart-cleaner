@@ -18,10 +18,14 @@ const CleanupService = {
       const subject = thread.getFirstMessageSubject();
 
       // 1. Classify and Label
-      const { labels: newLabels, from, domain } = RuleEngine.classifyThread(thread);
+      const {
+        labels: newLabels,
+        from,
+        domain,
+      } = RuleEngine.classifyThread(thread);
       if (newLabels.length > 0) {
         stats.threadsLabeledCount++; // Increment count of threads that received at least one label
-        newLabels.forEach(labelName => {
+        newLabels.forEach((labelName) => {
           if (!labelMap.has(labelName)) {
             labelMap.set(labelName, []);
           }
@@ -30,7 +34,7 @@ const CleanupService = {
       }
 
       // 2. Check for Cleanup Actions (Trash/Archive)
-      const threadLabels = thread.getLabels().map(l => l.getName());
+      const threadLabels = thread.getLabels().map((l) => l.getName());
       const allLabels = [...new Set([...threadLabels, ...newLabels])];
       let actionTaken = false;
 
@@ -68,10 +72,16 @@ const CleanupService = {
 
     // 3. Execute Batch Actions
     if (CONFIG.EXECUTION.DRY_RUN) {
-      if (threadsToTrash.length > 0) Logger.log(`[DRY RUN] Would trash ${threadsToTrash.length} threads.`);
-      if (threadsToArchive.length > 0) Logger.log(`[DRY RUN] Would archive ${threadsToArchive.length} threads.`);
+      if (threadsToTrash.length > 0)
+        Logger.log(`[DRY RUN] Would trash ${threadsToTrash.length} threads.`);
+      if (threadsToArchive.length > 0)
+        Logger.log(
+          `[DRY RUN] Would archive ${threadsToArchive.length} threads.`
+        );
       labelMap.forEach((threads, labelName) => {
-        Logger.log(`[DRY RUN] Would apply label "${labelName}" to ${threads.length} threads.`);
+        Logger.log(
+          `[DRY RUN] Would apply label "${labelName}" to ${threads.length} threads.`
+        );
       });
     } else {
       if (threadsToTrash.length > 0) {
@@ -95,7 +105,9 @@ const CleanupService = {
             () => label.addToThreads(threads),
             `apply label "${labelName}" to ${threads.length} threads`
           );
-          Logger.log(`Applied label "${labelName}" to ${threads.length} threads.`);
+          Logger.log(
+            `Applied label "${labelName}" to ${threads.length} threads.`
+          );
         }
       });
     }
@@ -111,13 +123,37 @@ const CleanupService = {
    * @returns {boolean} True if it's safe to delete, false otherwise.
    */
   isSafeToDelete(thread, subject, threadLabelNames, from, domain) {
-    if (thread.isStarred()) { Logger.debug(`Skipping starred thread: "${subject}"`); return false; } // Fast check
-    if (thread.isImportant()) { Logger.debug(`Skipping important thread: "${subject}"`); return false; } // Fast check
-    if (!CONFIG.SAFETY.ALLOW_DELETING_UNREAD && thread.isUnread()) { Logger.debug(`Skipping unread thread as per safety config: "${subject}"`); return false; }
+    if (thread.isStarred()) {
+      Logger.debug(`Skipping starred thread: "${subject}"`);
+      return false;
+    } // Fast check
+    if (thread.isImportant()) {
+      Logger.debug(`Skipping important thread: "${subject}"`);
+      return false;
+    } // Fast check
+    if (!CONFIG.SAFETY.ALLOW_DELETING_UNREAD && thread.isUnread()) {
+      Logger.debug(`Skipping unread thread as per safety config: "${subject}"`);
+      return false;
+    }
     // Check labels before making an expensive API call. Also fixes a case-sensitivity bug.
-    if (threadLabelNames.some(label => SAFE_LABELS.includes(label.toLowerCase()))) { Logger.debug(`Skipping thread with safe label: "${subject}"`); return false; }
-    if (SAFE_SENDER_EMAILS.includes(from)) { Logger.debug(`Skipping thread from safe sender "${from}": "${subject}"`); return false; }
-    if (domain && SAFE_SENDER_DOMAINS.includes(domain)) { Logger.debug(`Skipping thread from safe domain "${domain}": "${subject}"`); return false; }
+    if (
+      threadLabelNames.some((label) =>
+        SAFE_LABELS.includes(label.toLowerCase())
+      )
+    ) {
+      Logger.debug(`Skipping thread with safe label: "${subject}"`);
+      return false;
+    }
+    if (SAFE_SENDER_EMAILS.includes(from)) {
+      Logger.debug(`Skipping thread from safe sender "${from}": "${subject}"`);
+      return false;
+    }
+    if (domain && SAFE_SENDER_DOMAINS.includes(domain)) {
+      Logger.debug(
+        `Skipping thread from safe domain "${domain}": "${subject}"`
+      );
+      return false;
+    }
     return true;
   },
 };

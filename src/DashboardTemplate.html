@@ -1,77 +1,158 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
-    <base target="_top">
+    <base target="_top" />
     <style>
-      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background-color: #f7f9fc; color: #3c4043; }
-      .header { background-color: #4285F4; color: white; padding: 20px 40px; font-size: 24px; font-weight: 400; }
-      .container { padding: 20px 40px; }
-      h2 { font-weight: 500; color: #202124; border-bottom: 1px solid #dadce0; padding-bottom: 10px; }
-      .card { background-color: white; border: 1px solid #dadce0; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 2px 0 rgba(60,64,67,0.302), 0 1px 3px 1px rgba(60,64,67,0.149); }
-      .card-header { padding: 16px; border-bottom: 1px solid #dadce0; font-size: 16px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; }
-      .card-body { padding: 16px; }
-      .status { padding: 4px 8px; border-radius: 16px; font-size: 12px; font-weight: 500; }
-      .status.success { background-color: #e6f4ea; color: #1e8e3e; }
-      .status.failure { background-color: #fce8e6; color: #d93025; }
-      table { width: 100%; border-collapse: collapse; }
-      th, td { text-align: left; padding: 12px 0; border-bottom: 1px solid #e8eaed; }
-      th { font-weight: 500; color: #5f6368; }
-      tr:last-child td { border-bottom: none; }
-      .error-details { background-color: #f8f9fa; border: 1px solid #dadce0; padding: 10px; margin-top: 10px; font-family: "Roboto Mono", monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
-      .no-history { text-align: center; padding: 40px; color: #5f6368; }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+          Arial, sans-serif;
+        margin: 0;
+        background-color: #f7f9fc;
+        color: #3c4043;
+      }
+      .header {
+        background-color: #4285f4;
+        color: white;
+        padding: 20px 40px;
+        font-size: 24px;
+        font-weight: 400;
+      }
+      .container {
+        padding: 20px 40px;
+      }
+      h2 {
+        font-weight: 500;
+        color: #202124;
+        border-bottom: 1px solid #dadce0;
+        padding-bottom: 10px;
+      }
+      .card {
+        background-color: white;
+        border: 1px solid #dadce0;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        box-shadow:
+          0 1px 2px 0 rgba(60, 64, 67, 0.302),
+          0 1px 3px 1px rgba(60, 64, 67, 0.149);
+      }
+      .card-header {
+        padding: 16px;
+        border-bottom: 1px solid #dadce0;
+        font-size: 16px;
+        font-weight: 500;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .card-body {
+        padding: 16px;
+      }
+      .status {
+        padding: 4px 8px;
+        border-radius: 16px;
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .status.success {
+        background-color: #e6f4ea;
+        color: #1e8e3e;
+      }
+      .status.failure {
+        background-color: #fce8e6;
+        color: #d93025;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 12px 0;
+        border-bottom: 1px solid #e8eaed;
+      }
+      th {
+        font-weight: 500;
+        color: #5f6368;
+      }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      .error-details {
+        background-color: #f8f9fa;
+        border: 1px solid #dadce0;
+        padding: 10px;
+        margin-top: 10px;
+        font-family: 'Roboto Mono', monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .no-history {
+        text-align: center;
+        padding: 40px;
+        color: #5f6368;
+      }
     </style>
   </head>
   <body>
-    <div class="header">
-      Gmail Smart Cleaner Dashboard
-    </div>
+    <div class="header">Gmail Smart Cleaner Dashboard</div>
 
     <div class="container">
       <h2>Execution History</h2>
 
-      <? const history = getExecutionHistory(); ?>
-      <? if (history.length > 0) { ?>
-        <? for (const run of history) { ?>
-          <div class="card">
-            <div class="card-header">
-              <span>Run completed on <?= new Date(run.completedAt).toLocaleString() ?></span>
-              <span class="status <?= run.status.toLowerCase() ?>"><?= run.status ?></span>
-            </div>
-            <div class="card-body">
-              <table>
-                <tr>
-                  <td>Threads Processed</td>
-                  <td><?= run.processedCount || 0 ?></td>
-                </tr>
-                <tr>
-                  <td>Threads Labeled</td>
-                  <td><?= run.threadsLabeledCount || 0 ?></td>
-                </tr>
-                <tr>
-                  <td>Threads Archived</td>
-                  <td><?= run.archivedCount || 0 ?></td>
-                </tr>
-                <tr>
-                  <td>Threads Trashed</td>
-                  <td><?= run.trashedCount || 0 ?></td>
-                </tr>
-                 <tr>
-                  <td>Total Runtime</td>
-                  <td><?= run.totalRuntime || 0 ?> seconds</td>
-                </tr>
-              </table>
-              <? if (run.status === 'Failure' && run.error) { ?>
-                <div class="error-details"><strong>Error:</strong> <?= run.error ?></div>
-              <? } ?>
-            </div>
-          </div>
-        <? } ?>
-      <? } else { ?>
-        <div class="card">
-          <div class="card-body no-history">
-            No execution history found. The script may not have run yet.
-          </div>
+      <? const history = getExecutionHistory(); ?> <? if (history.length > 0) {
+      ?> <? for (const run of history) { ?>
+      <div class="card">
+        <div class="card-header">
+          <span
+            >Run completed on <?= new Date(run.completedAt).toLocaleString()
+            ?></span
+          >
+          <span class="status <?= run.status.toLowerCase() ?>"
+            ><?= run.status ?></span
+          >
         </div>
+        <div class="card-body">
+          <table>
+            <tr>
+              <td>Threads Processed</td>
+              <td><?= run.processedCount || 0 ?></td>
+            </tr>
+            <tr>
+              <td>Threads Labeled</td>
+              <td><?= run.threadsLabeledCount || 0 ?></td>
+            </tr>
+            <tr>
+              <td>Threads Archived</td>
+              <td><?= run.archivedCount || 0 ?></td>
+            </tr>
+            <tr>
+              <td>Threads Trashed</td>
+              <td><?= run.trashedCount || 0 ?></td>
+            </tr>
+            <tr>
+              <td>Total Runtime</td>
+              <td>
+                <?= run.totalRuntime || 0 ?>
+                seconds
+              </td>
+            </tr>
+          </table>
+          <? if (run.status === 'Failure' && run.error) { ?>
+          <div class="error-details">
+            <strong>Error:</strong> <?= run.error ?>
+          </div>
+          <? } ?>
+        </div>
+      </div>
+      <? } ?> <? } else { ?>
+      <div class="card">
+        <div class="card-body no-history">
+          No execution history found. The script may not have run yet.
+        </div>
+      </div>
       <? } ?>
     </div>
   </body>

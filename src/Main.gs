@@ -10,7 +10,10 @@
  */
 function doGet(e) {
   const template = HtmlService.createTemplateFromFile('DashboardTemplate');
-  return template.evaluate().setTitle('Gmail Smart Cleaner Dashboard').setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
+  return template
+    .evaluate()
+    .setTitle('Gmail Smart Cleaner Dashboard')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
 }
 
 // ==========================================================================
@@ -25,7 +28,9 @@ function doGet(e) {
 function runInitialSetup() {
   Logger.log('Starting initial setup...');
   LabelService.ensureLabelsExist();
-  Logger.log('Initial setup complete. You can now run installTriggers() to automate the script.');
+  Logger.log(
+    'Initial setup complete. You can now run installTriggers() to automate the script.'
+  );
 }
 
 /**
@@ -49,14 +54,16 @@ function runHealthCheck() {
   const configErrors = Utils.validateConfig();
   if (configErrors.length > 0) {
     Logger.error('Configuration validation failed:');
-    configErrors.forEach(err => Logger.error(`- ${err}`));
+    configErrors.forEach((err) => Logger.error(`- ${err}`));
   } else {
     Logger.log('Configuration validation passed.');
   }
 
   // 2. Check triggers (basic check)
   const triggers = ScriptApp.getProjectTriggers();
-  Logger.log(`Found ${triggers.length} installed trigger(s). Run installTriggers() to reset if needed.`);
+  Logger.log(
+    `Found ${triggers.length} installed trigger(s). Run installTriggers() to reset if needed.`
+  );
   Logger.log('====== Health Check Complete ======');
 }
 
@@ -72,9 +79,13 @@ function runHealthCheck() {
 function gmailCleanup() {
   // Pre-flight check to ensure the Advanced Gmail Service is enabled.
   if (typeof Gmail === 'undefined') {
-    const errorMessage = 'The Advanced Gmail Service is not enabled. Please open the Apps Script editor, go to "Services +", and add the "Gmail API".';
+    const errorMessage =
+      'The Advanced Gmail Service is not enabled. Please open the Apps Script editor, go to "Services +", and add the "Gmail API".';
     Logger.error(errorMessage);
-    _sendErrorNotification('Configuration Error: Advanced Service Disabled', errorMessage);
+    _sendErrorNotification(
+      'Configuration Error: Advanced Service Disabled',
+      errorMessage
+    );
     return;
   }
 
@@ -82,7 +93,9 @@ function gmailCleanup() {
   const lockAcquired = lock.tryLock(10000); // Wait 10 seconds for lock
 
   if (!lockAcquired) {
-    Logger.log('Could not acquire lock. Another instance is likely running. Exiting...');
+    Logger.log(
+      'Could not acquire lock. Another instance is likely running. Exiting...'
+    );
     return;
   }
 
@@ -91,7 +104,10 @@ function gmailCleanup() {
   if (configErrors.length > 0) {
     const errorMsg = 'GmailCleanup stopped due to configuration errors.';
     Logger.error(errorMsg);
-    _sendErrorNotification('Configuration Error', `${errorMsg}\n\n${configErrors.join('\n')}`);
+    _sendErrorNotification(
+      'Configuration Error',
+      `${errorMsg}\n\n${configErrors.join('\n')}`
+    );
     return;
   }
 
@@ -138,8 +154,8 @@ function gmailCleanup() {
       currentToken = response.nextPageToken;
 
       if (response.threads && response.threads.length > 0) {
-        const threadIds = response.threads.map(t => t.id);
-        threads = threadIds.map(id => GmailApp.getThreadById(id));
+        const threadIds = response.threads.map((t) => t.id);
+        threads = threadIds.map((id) => GmailApp.getThreadById(id));
         Logger.log(`Processing a batch of ${threads.length} threads.`);
         CleanupService.processThreads(threads, stats);
       } else {
@@ -150,28 +166,49 @@ function gmailCleanup() {
         if (currentToken) {
           const newState = { continuationToken: currentToken, stats: stats };
           properties.setProperty('cleanupState', JSON.stringify(newState));
-          ScriptApp.newTrigger('gmailCleanup').timeBased().after(60 * 1000).create();
-          Logger.log('Approaching execution time limit. Pausing. Will resume automatically in 1 minute.');
+          ScriptApp.newTrigger('gmailCleanup')
+            .timeBased()
+            .after(60 * 1000)
+            .create();
+          Logger.log(
+            'Approaching execution time limit. Pausing. Will resume automatically in 1 minute.'
+          );
         } else {
           // Ran out of time but also finished processing all threads in the last batch.
-          Logger.log('Approaching time limit, but no more threads to process. Finishing run.');
+          Logger.log(
+            'Approaching time limit, but no more threads to process. Finishing run.'
+          );
         }
         lock.releaseLock();
         return; // Exit and wait for the next trigger or finish.
       }
     } while (currentToken);
 
-    const totalRuntime = Math.round((new Date().getTime() - stats.startTime) / 1000);
+    const totalRuntime = Math.round(
+      (new Date().getTime() - stats.startTime) / 1000
+    );
     Logger.log('====== Gmail Cleanup Complete ======');
-    Logger.log(`Processed: ${stats.processedCount}, Labeled: ${stats.threadsLabeledCount}, Archived: ${stats.archivedCount}, Trashed: ${stats.trashedCount}, Skipped: ${stats.skippedCount}`);
+    Logger.log(
+      `Processed: ${stats.processedCount}, Labeled: ${stats.threadsLabeledCount}, Archived: ${stats.archivedCount}, Trashed: ${stats.trashedCount}, Skipped: ${stats.skippedCount}`
+    );
     Logger.log(`Total runtime: ${totalRuntime} seconds.`);
 
-    _updateExecutionHistory({ ...stats, totalRuntime, status: 'Success', completedAt: new Date().toISOString() });
+    _updateExecutionHistory({
+      ...stats,
+      totalRuntime,
+      status: 'Success',
+      completedAt: new Date().toISOString(),
+    });
     properties.deleteProperty('cleanupState');
   } catch (e) {
     Logger.error('A critical error occurred during gmailCleanup.', e);
     _sendErrorNotification('Script Failure: gmailCleanup', e.stack);
-    _updateExecutionHistory({ ...stats, status: 'Failure', error: e.message, completedAt: new Date().toISOString() });
+    _updateExecutionHistory({
+      ...stats,
+      status: 'Failure',
+      error: e.message,
+      completedAt: new Date().toISOString(),
+    });
   } finally {
     lock.releaseLock();
   }
@@ -194,13 +231,16 @@ function cleanupAttachments() {
   }
 
   Logger.log('====== Starting Attachment Cleanup ======');
-  const { MIN_SIZE_MB, OLDER_THAN_DAYS, LABEL } = CONFIG.RULES.ATTACHMENT_CLEANUP;
+  const { MIN_SIZE_MB, OLDER_THAN_DAYS, LABEL } =
+    CONFIG.RULES.ATTACHMENT_CLEANUP;
   const searchQuery = `has:attachment larger:${MIN_SIZE_MB}m older_than:${OLDER_THAN_DAYS}d -label:"${LABEL}"`;
 
   try {
     const label = GmailApp.getUserLabelByName(LABEL);
     if (!label) {
-      Logger.error(`Attachment cleanup label "${LABEL}" does not exist. Please run initial setup.`);
+      Logger.error(
+        `Attachment cleanup label "${LABEL}" does not exist. Please run initial setup.`
+      );
       return;
     }
 
@@ -217,26 +257,36 @@ function cleanupAttachments() {
       pageToken = response.nextPageToken;
 
       if (response.threads && response.threads.length > 0) {
-        const threadIds = response.threads.map(t => t.id);
-        const threads = threadIds.map(id => GmailApp.getThreadById(id));
-        Logger.log(`Found a batch of ${threads.length} threads with attachments larger than ${MIN_SIZE_MB}MB.`);
+        const threadIds = response.threads.map((t) => t.id);
+        const threads = threadIds.map((id) => GmailApp.getThreadById(id));
+        Logger.log(
+          `Found a batch of ${threads.length} threads with attachments larger than ${MIN_SIZE_MB}MB.`
+        );
 
         if (CONFIG.EXECUTION.DRY_RUN) {
-          Logger.log(`[DRY RUN] Would apply label "${LABEL}" to ${threads.length} threads.`);
+          Logger.log(
+            `[DRY RUN] Would apply label "${LABEL}" to ${threads.length} threads.`
+          );
         } else {
-          Utils.withRetry(() => label.addToThreads(threads), `apply label "${LABEL}" to ${threads.length} threads`);
+          Utils.withRetry(
+            () => label.addToThreads(threads),
+            `apply label "${LABEL}" to ${threads.length} threads`
+          );
           Logger.log(`Successfully labeled ${threads.length} threads.`);
         }
         totalLabeled += threads.length;
       }
 
       if (Utils.isTimeRunningOut()) {
-        Logger.log('Approaching execution time limit during attachment cleanup. Pausing. Will continue on next scheduled run.');
+        Logger.log(
+          'Approaching execution time limit during attachment cleanup. Pausing. Will continue on next scheduled run.'
+        );
         break;
       }
     } while (pageToken);
 
-    if (totalLabeled === 0) Logger.log('No new threads with large attachments found.');
+    if (totalLabeled === 0)
+      Logger.log('No new threads with large attachments found.');
   } catch (e) {
     Logger.error('A critical error occurred during cleanupAttachments.', e);
     _sendErrorNotification('Script Failure: cleanupAttachments', e.stack);
@@ -253,7 +303,9 @@ function cleanupAttachments() {
  */
 function getExecutionHistory() {
   const properties = PropertiesService.getScriptProperties();
-  const history = JSON.parse(properties.getProperty('executionHistory') || '[]');
+  const history = JSON.parse(
+    properties.getProperty('executionHistory') || '[]'
+  );
   return history;
 }
 
@@ -268,7 +320,10 @@ function _updateExecutionHistory(newRunStats) {
   history.unshift(newRunStats); // Add new run to the beginning
 
   // Keep history limited to the configured count
-  const trimmedHistory = history.slice(0, CONFIG.EXECUTION.EXECUTION_HISTORY_COUNT);
+  const trimmedHistory = history.slice(
+    0,
+    CONFIG.EXECUTION.EXECUTION_HISTORY_COUNT
+  );
 
   properties.setProperty('executionHistory', JSON.stringify(trimmedHistory));
   // Also set last run for summary reports
@@ -285,7 +340,9 @@ function _sendSummaryReport(period) {
   if (lastRun && lastRun.status === 'Success') {
     SummaryService.sendSummaryReport(period, lastRun);
   } else {
-    Logger.log(`No successful run found in history. Skipping ${period.toLowerCase()} report.`);
+    Logger.log(
+      `No successful run found in history. Skipping ${period.toLowerCase()} report.`
+    );
   }
 }
 
@@ -309,7 +366,12 @@ function _sendErrorNotification(subject, body) {
 
   try {
     Utils.withRetry(
-      () => MailApp.sendEmail(recipient, `[Gmail Smart Cleaner] ${subject}`, `A critical error occurred in the Gmail Smart Cleaner script:\n\n${body}`),
+      () =>
+        MailApp.sendEmail(
+          recipient,
+          `[Gmail Smart Cleaner] ${subject}`,
+          `A critical error occurred in the Gmail Smart Cleaner script:\n\n${body}`
+        ),
       'send error notification'
     );
   } catch (e) {

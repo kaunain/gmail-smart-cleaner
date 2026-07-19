@@ -20,10 +20,14 @@ const LabelService = {
     }
     Logger.debug('Fetching user labels from Gmail API.');
     const labels = Utils.withRetry(
-      () => GmailApp.getUserLabels().map(label => label.getName()),
+      () => GmailApp.getUserLabels().map((label) => label.getName()),
       'fetch user labels'
     );
-    cache.put('userLabels', JSON.stringify(labels), CONFIG.EXECUTION.CACHE_EXPIRATION_SECONDS);
+    cache.put(
+      'userLabels',
+      JSON.stringify(labels),
+      CONFIG.EXECUTION.CACHE_EXPIRATION_SECONDS
+    );
     this._userLabelsCache = labels;
     return labels;
   },
@@ -34,13 +38,18 @@ const LabelService = {
   ensureLabelsExist() {
     Logger.log('Checking for required Gmail labels...');
     const existingLabels = this._getUserLabels();
-    const existingLabelsLower = existingLabels.map(name => name.toLowerCase());
+    const existingLabelsLower = existingLabels.map((name) =>
+      name.toLowerCase()
+    );
     let createdCount = 0;
-    CONFIG.LABELS.REQUIRED_LABELS.forEach(labelName => {
+    CONFIG.LABELS.REQUIRED_LABELS.forEach((labelName) => {
       if (!existingLabelsLower.includes(labelName.toLowerCase())) {
         try {
           if (!CONFIG.EXECUTION.DRY_RUN) {
-            Utils.withRetry(() => GmailApp.createLabel(labelName), `create label "${labelName}"`);
+            Utils.withRetry(
+              () => GmailApp.createLabel(labelName),
+              `create label "${labelName}"`
+            );
           }
           Logger.log(`Created label: "${labelName}"`);
           createdCount++;

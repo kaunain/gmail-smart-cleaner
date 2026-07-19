@@ -20,8 +20,8 @@ If you have an idea for a new feature or an improvement to an existing one, we w
 
 Unsure where to begin contributing? You can start by looking through `good-first-issue` and `help-wanted` issues:
 
--   Good first issues - issues which should only require a few lines of code, and a test or two.
--   Help wanted issues - issues which should be a bit more involved than `good-first-issue` issues.
+- Good first issues - issues which should only require a few lines of code, and a test or two.
+- Help wanted issues - issues which should be a bit more involved than `good-first-issue` issues.
 
 ### Pull Requests
 
@@ -40,8 +40,8 @@ When you're ready to contribute code, please follow these steps:
 
 Our branching model is simple:
 
--   `main`: This is the primary branch where the source code of `HEAD` reflects the latest delivered development changes for the next release.
--   **Feature branches**: All new development should be done in a feature branch, created from `main`. A good branch name would be `feat/add-new-rule` or `fix/cleanup-service-bug`.
+- `main`: This is the primary branch where the source code of `HEAD` reflects the latest delivered development changes for the next release.
+- **Feature branches**: All new development should be done in a feature branch, created from `main`. A good branch name would be `feat/add-new-rule` or `fix/cleanup-service-bug`.
 
 ```sh
 git checkout -b feat/my-new-feature
@@ -81,4 +81,4 @@ Finally, go to GitHub and make a Pull Request.
 
 ---
 
-*This Contributing guide was adapted from the Puppeteer Contributing Guide.*
+_This Contributing guide was adapted from the Puppeteer Contributing Guide._

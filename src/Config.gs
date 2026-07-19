@@ -219,13 +219,21 @@ const CONFIG = {
    */
   CLASSIFICATION_RULES: [
     // --- Custom Junk Mail ---
-    { criteria: { from: 'newsletter@annoying.com' }, label: 'Junk Mail', isPriority: true },
+    {
+      criteria: { from: 'newsletter@annoying.com' },
+      label: 'Junk Mail',
+      isPriority: true,
+    },
 
     // --- Work & Development ---
     { criteria: { domain: 'github.com' }, label: 'Work' },
     { criteria: { domain: 'gitlab.com' }, label: 'Work' },
     { criteria: { domain: 'bitbucket.org' }, label: 'Work' },
-    { criteria: { from: 'noreply@google.com', subject: 'security alert' }, label: 'Important', isPriority: true },
+    {
+      criteria: { from: 'noreply@google.com', subject: 'security alert' },
+      label: 'Important',
+      isPriority: true,
+    },
     { criteria: { domain: 'stackoverflow.com' }, label: 'Learning' },
 
     // --- Social & Professional Networking ---
@@ -244,8 +252,16 @@ const CONFIG = {
     { criteria: { from: 'order@zomato.com' }, label: 'Shopping' },
 
     // --- Finance & Payments ---
-    { criteria: { subject: 'bank statement' }, label: 'Finance', isPriority: true },
-    { criteria: { subject: 'credit card statement' }, label: 'Finance', isPriority: true },
+    {
+      criteria: { subject: 'bank statement' },
+      label: 'Finance',
+      isPriority: true,
+    },
+    {
+      criteria: { subject: 'credit card statement' },
+      label: 'Finance',
+      isPriority: true,
+    },
     { criteria: { domain: 'hdfcbank.com' }, label: 'Finance' },
     { criteria: { domain: 'icicibank.com' }, label: 'Finance' },
     { criteria: { domain: 'sbi.co.in' }, label: 'Finance' },
@@ -288,8 +304,16 @@ const CONFIG = {
 
     // --- OTPs (One-Time Passwords) ---
     { criteria: { subject: 'OTP' }, label: 'OTP', isPriority: true },
-    { criteria: { subject: 'one-time password' }, label: 'OTP', isPriority: true },
-    { criteria: { body: 'is your one-time password' }, label: 'OTP', isPriority: true },
+    {
+      criteria: { subject: 'one-time password' },
+      label: 'OTP',
+      isPriority: true,
+    },
+    {
+      criteria: { body: 'is your one-time password' },
+      label: 'OTP',
+      isPriority: true,
+    },
 
     // --- Generic Categories (lower priority) ---
     { criteria: { category: 'promotions' }, label: 'Promotions' },
@@ -303,15 +327,18 @@ const CONFIG = {
  * This is pre-calculated here for efficiency.
  * @type {string[]}
  */
-const SAFE_SENDER_EMAILS = CONFIG.SAFETY.SAFE_SENDERS.map(email => email.toLowerCase());
+const SAFE_SENDER_EMAILS = CONFIG.SAFETY.SAFE_SENDERS.map((email) =>
+  email.toLowerCase()
+);
 
 /**
  * A consolidated list of all sender domains that should prevent an email from being trashed.
  * This is pre-calculated here for efficiency.
  * @type {string[]}
  */
-const SAFE_SENDER_DOMAINS = CONFIG.SAFETY.SAFE_DOMAINS.map(domain => domain.toLowerCase());
-
+const SAFE_SENDER_DOMAINS = CONFIG.SAFETY.SAFE_DOMAINS.map((domain) =>
+  domain.toLowerCase()
+);
 
 /**
  * A consolidated list of all labels that should prevent an email from being trashed.
@@ -328,4 +355,4 @@ const SAFE_LABELS = [
     'Investments',
     ...CONFIG.SAFETY.PROTECTED_LABELS,
   ]),
-].map(label => label.toLowerCase());
+].map((label) => label.toLowerCase());
