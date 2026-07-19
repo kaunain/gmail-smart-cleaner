@@ -6,7 +6,7 @@ const RuleEngine = {
   /**
    * Classifies a single Gmail thread based on the rules in Config.gs.
    * @param {GoogleAppsScript.Gmail.GmailThread} thread The thread to classify.
-   * @returns {string[]} A list of labels to be applied to the thread.
+   * @returns {{labels: string[], from: string, domain: string}} An object containing the labels to apply and sender info.
    */
   classifyThread(thread) {
     const labelsToApply = new Set();
@@ -45,6 +45,6 @@ const RuleEngine = {
       }
     }
 
-    return [...labelsToApply];
+    return { labels: [...labelsToApply], from, domain };
   },
 };

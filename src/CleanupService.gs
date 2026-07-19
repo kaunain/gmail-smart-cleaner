@@ -18,7 +18,7 @@ const CleanupService = {
       const subject = thread.getFirstMessageSubject();
 
       // 1. Classify and Label
-      const newLabels = RuleEngine.classifyThread(thread);
+      const { labels: newLabels, from, domain } = RuleEngine.classifyThread(thread);
       if (newLabels.length > 0) {
         stats.threadsLabeledCount++; // Increment count of threads that received at least one label
         newLabels.forEach(labelName => {
@@ -42,7 +42,7 @@ const CleanupService = {
           thresholdDate.setDate(thresholdDate.getDate() - rule.days);
 
           if (lastMessageDate < thresholdDate) {
-            if (this.isSafeToDelete(thread, subject, allLabels)) {
+            if (this.isSafeToDelete(thread, subject, allLabels, from, domain)) {
               threadsToTrash.push(thread);
               stats.trashedCount++;
               actionTaken = true;
@@ -106,18 +106,16 @@ const CleanupService = {
    * @param {GoogleAppsScript.Gmail.GmailThread} thread The thread to check.
    * @param {string} subject The subject of the thread for logging.
    * @param {string[]} threadLabelNames Lowercase names of all labels on the thread.
+   * @param {string} from The lowercase sender email address.
+   * @param {string} domain The lowercase sender domain.
    * @returns {boolean} True if it's safe to delete, false otherwise.
    */
-  isSafeToDelete(thread, subject, threadLabelNames) {
+  isSafeToDelete(thread, subject, threadLabelNames, from, domain) {
     if (thread.isStarred()) { Logger.debug(`Skipping starred thread: "${subject}"`); return false; } // Fast check
     if (thread.isImportant()) { Logger.debug(`Skipping important thread: "${subject}"`); return false; } // Fast check
     if (thread.isUnread()) { Logger.debug(`Skipping unread thread: "${subject}"`); return false; } // Fast check
     // Check labels before making an expensive API call. Also fixes a case-sensitivity bug.
     if (threadLabelNames.some(label => SAFE_LABELS.includes(label.toLowerCase()))) { Logger.debug(`Skipping thread with safe label: "${subject}"`); return false; }
-    
-    // Only make an API call if all fast checks pass.
-    const from = thread.getMessages()[0].getFrom().toLowerCase();
-    const domain = Utils.getDomainFromEmail(from);
     if (SAFE_SENDER_EMAILS.includes(from)) { Logger.debug(`Skipping thread from safe sender "${from}": "${subject}"`); return false; }
     if (domain && SAFE_SENDER_DOMAINS.includes(domain)) { Logger.debug(`Skipping thread from safe domain "${domain}": "${subject}"`); return false; }
     return true;

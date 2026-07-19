@@ -24,16 +24,15 @@ const SummaryService = {
       Logger.log(`[DRY RUN] Would send summary email to ${recipient}.`);
       Logger.debug(`[DRY RUN] Email Subject: ${subject}`);
     } else {
-      try {
-        Utils.withRetry(
-          () => MailApp.sendEmail({ to: recipient, subject: subject, htmlBody: htmlBody }),
-          `send ${period} summary report`
-        );
-        Logger.log(`${period} summary report sent successfully.`);
-      } catch (e) {
-        Logger.error(`Failed to send summary email to ${recipient}`, e);
-      }
+      Utils.withRetry(
+        () => MailApp.sendEmail({ to: recipient, subject: subject, htmlBody: htmlBody }),
+        `send ${period} summary report`
+      );
+      Logger.log(`${period} summary report sent successfully.`);
     }
+  } catch (e) {
+    // The withRetry function will rethrow the error after all retries fail.
+    Logger.error(`Failed to send summary email to ${recipient} after multiple retries.`, e);
   },
 
   /**
