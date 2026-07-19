@@ -1,3 +1,6 @@
 node_modules
 package-lock.json
 CHANGELOG.md
+coverage
+dist
+.clasp.json

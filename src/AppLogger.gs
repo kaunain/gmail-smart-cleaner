@@ -2,7 +2,7 @@
  * @fileoverview A simple logging utility for the script.
  */
 
-const Logger = {
+const AppLogger = {
   /**
    * Logs a standard informational message.
    * @param {string} message The message to log.
