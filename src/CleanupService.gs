@@ -18,12 +18,15 @@ const CleanupService = {
       try {
         stats.processedCount++;
 
-        const subject = thread.getFirstMessageSubject() || '(no subject)';
+        const subject = thread.getFirstMessageSubject() || '(No Subject)';
+        AppLogger.debug(
+          `Processing thread: "${subject}" (ID: ${thread.getId()})`
+        );
 
         // 1) Classify thread
         const classification = RuleEngine.classifyThread(thread);
         const newLabels = classification.labels || [];
-        const from = classification.from || '';
+        const from = (classification.from || '').toLowerCase();
         const domain = classification.domain || '';
 
         if (newLabels.length > 0) {
@@ -35,6 +38,7 @@ const CleanupService = {
             }
             labelMap.get(labelName).push(thread);
           }
+          AppLogger.debug(`  > Applying new labels: [${newLabels.join(', ')}]`);
         }
 
         // Build a normalized label set
@@ -71,9 +75,12 @@ const CleanupService = {
               ) {
                 threadsToTrash.push(thread);
                 stats.trashedCount++;
+                AppLogger.debug(
+                  `  > Matched TRASH rule: {label: "${rule.label}", days: ${rule.days}}. Queued for trash.`
+                );
                 actionTaken = true;
               } else {
-                stats.skippedCount++;
+                stats.skippedCount++; // Reason is logged inside isSafeToDelete
               }
             }
             break;
@@ -89,14 +96,21 @@ const CleanupService = {
             if (allLabels.has(String(rule.label).toLowerCase())) {
               threadsToArchive.push(thread);
               stats.archivedCount++;
+              AppLogger.debug(
+                `  > Matched ARCHIVE rule: {label: "${rule.label}"}. Queued for archive.`
+              );
               actionTaken = true;
               break;
             }
           }
         }
+
+        if (!actionTaken && newLabels.length === 0) {
+          AppLogger.debug(`  > No action taken.`);
+        }
       } catch (error) {
         stats.errorsCount = (stats.errorsCount || 0) + 1;
-        Logger.error(
+        AppLogger.error(
           `Failed to process thread "${thread?.getFirstMessageSubject?.() || 'unknown'}": ${error.message}`
         );
       }
@@ -104,16 +118,16 @@ const CleanupService = {
 
     // 4) Execute actions
     if (CONFIG?.EXECUTION?.DRY_RUN) {
-      if (threadsToTrash.length > 0) {
-        Logger.log(`[DRY RUN] Would trash ${threadsToTrash.length} threads.`);
-      }
-      if (threadsToArchive.length > 0) {
-        Logger.log(
+      if (threadsToTrash.length > 0)
+        AppLogger.log(
+          `[DRY RUN] Would trash ${threadsToTrash.length} threads.`
+        );
+      if (threadsToArchive.length > 0)
+        AppLogger.log(
           `[DRY RUN] Would archive ${threadsToArchive.length} threads.`
         );
-      }
       labelMap.forEach((labelThreads, labelName) => {
-        Logger.log(
+        AppLogger.log(
           `[DRY RUN] Would apply label "${labelName}" to ${labelThreads.length} threads.`
         );
       });
@@ -125,7 +139,7 @@ const CleanupService = {
         () => GmailApp.moveThreadsToTrash(threadsToTrash),
         `trash ${threadsToTrash.length} threads`
       );
-      Logger.log(`Trashed ${threadsToTrash.length} threads.`);
+      AppLogger.log(`Trashed ${threadsToTrash.length} threads.`);
     }
 
     if (threadsToArchive.length > 0) {
@@ -133,13 +147,13 @@ const CleanupService = {
         () => GmailApp.moveThreadsToArchive(threadsToArchive),
         `archive ${threadsToArchive.length} threads`
       );
-      Logger.log(`Archived ${threadsToArchive.length} threads.`);
+      AppLogger.log(`Archived ${threadsToArchive.length} threads.`);
     }
 
     labelMap.forEach((labelThreads, labelName) => {
       const label = GmailApp.getUserLabelByName(labelName);
       if (!label) {
-        Logger.warn(`Label "${labelName}" not found.`);
+        AppLogger.warn(`Label "${labelName}" not found.`);
         return;
       }
 
@@ -148,7 +162,7 @@ const CleanupService = {
         `apply label "${labelName}" to ${labelThreads.length} threads`
       );
 
-      Logger.log(
+      AppLogger.log(
         `Applied label "${labelName}" to ${labelThreads.length} threads.`
       );
     });
@@ -166,44 +180,43 @@ const CleanupService = {
    */
   isSafeToDelete(thread, subject, threadLabelNames, from, domain) {
     if (thread.hasStarredMessages()) {
-      Logger.debug(`Skipping starred thread: "${subject}"`);
+      AppLogger.debug(`  > Skipping trash for starred thread: "${subject}"`);
       return false;
     }
 
     if (thread.isImportant()) {
-      Logger.debug(`Skipping important thread: "${subject}"`);
+      AppLogger.debug(`  > Skipping trash for important thread: "${subject}"`);
       return false;
     }
 
     if (CONFIG?.SAFETY?.ALLOW_DELETING_UNREAD === false && thread.isUnread()) {
-      Logger.debug(`Skipping unread thread as per safety config: "${subject}"`);
+      AppLogger.debug(
+        `  > Skipping trash for unread thread as per safety config: "${subject}"`
+      );
       return false;
     }
 
     const safeLabels = (SAFE_LABELS || []).map((l) => String(l).toLowerCase());
-    if (
-      threadLabelNames.some((label) =>
-        safeLabels.includes(String(label).toLowerCase())
-      )
-    ) {
-      Logger.debug(`Skipping thread with safe label: "${subject}"`);
+    const matchedSafeLabel = threadLabelNames.find((label) =>
+      safeLabels.includes(String(label).toLowerCase())
+    );
+    if (matchedSafeLabel) {
+      AppLogger.debug(
+        `  > Skipping trash for thread with safe label "${matchedSafeLabel}": "${subject}"`
+      );
       return false;
     }
 
-    const safeEmails = (SAFE_SENDER_EMAILS || []).map((e) =>
-      String(e).toLowerCase()
-    );
-    if (safeEmails.includes(String(from).toLowerCase())) {
-      Logger.debug(`Skipping thread from safe sender "${from}": "${subject}"`);
+    if ((SAFE_SENDER_EMAILS || []).includes(from)) {
+      AppLogger.debug(
+        `  > Skipping trash for thread from safe sender "${from}": "${subject}"`
+      );
       return false;
     }
 
-    const safeDomains = (SAFE_SENDER_DOMAINS || []).map((d) =>
-      String(d).toLowerCase()
-    );
-    if (domain && safeDomains.includes(String(domain).toLowerCase())) {
-      Logger.debug(
-        `Skipping thread from safe domain "${domain}": "${subject}"`
+    if (domain && (SAFE_SENDER_DOMAINS || []).includes(domain)) {
+      AppLogger.debug(
+        `  > Skipping trash for thread from safe domain "${domain}": "${subject}"`
       );
       return false;
     }

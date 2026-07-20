@@ -51,6 +51,14 @@ const CONFIG = {
 
     /**
      * @type {number}
+     * The maximum number of email threads to process in a single full execution.
+     * The script will stop after reaching this limit.
+     * Set to 0 to process all matching threads.
+     */
+    MAX_THREADS_TO_PROCESS: 0,
+
+    /**
+     * @type {number}
      * The number of past execution summaries to store for the dashboard.
      */
     EXECUTION_HISTORY_COUNT: 10,
@@ -218,107 +226,130 @@ const CONFIG = {
    * `isPriority`: (Optional) If true, stop processing further rules for this email.
    */
   CLASSIFICATION_RULES: [
-    // --- Custom Junk Mail ---
+    // --- High Priority & Security ---
     {
       criteria: { from: 'newsletter@annoying.com' },
-      label: 'Junk Mail',
+      labels: ['Junk Mail'],
+      isPriority: true,
+    },
+    {
+      criteria: { from: 'noreply@google.com', subject: 'security alert' },
+      labels: ['Important'],
       isPriority: true,
     },
 
     // --- Work & Development ---
-    { criteria: { domain: 'github.com' }, label: 'Work' },
-    { criteria: { domain: 'gitlab.com' }, label: 'Work' },
-    { criteria: { domain: 'bitbucket.org' }, label: 'Work' },
     {
-      criteria: { from: 'noreply@google.com', subject: 'security alert' },
-      label: 'Important',
-      isPriority: true,
+      criteria: { domain: ['github.com', 'gitlab.com', 'bitbucket.org'] },
+      labels: ['Work'],
     },
-    { criteria: { domain: 'stackoverflow.com' }, label: 'Learning' },
 
     // --- Social & Professional Networking ---
-    { criteria: { domain: 'linkedin.com' }, label: 'Social' },
-    { criteria: { domain: 'x.com' }, label: 'Social' }, // Formerly twitter.com
-    { criteria: { domain: 'facebook.com' }, label: 'Social' },
-    { criteria: { domain: 'instagram.com' }, label: 'Social' },
-    { criteria: { category: 'social' }, label: 'Social' },
+    {
+      criteria: {
+        domain: ['linkedin.com', 'x.com', 'facebook.com', 'instagram.com'],
+      },
+      labels: ['Social'],
+    },
+    { criteria: { category: 'social' }, labels: ['Social'] }, // Fallback
 
     // --- Shopping ---
-    { criteria: { domain: 'amazon.com' }, label: 'Shopping' },
-    { criteria: { domain: 'amazon.in' }, label: 'Shopping' },
-    { criteria: { domain: 'flipkart.com' }, label: 'Shopping' },
-    { criteria: { domain: 'myntra.com' }, label: 'Shopping' },
-    { criteria: { from: 'noreply@swiggy.in' }, label: 'Shopping' },
-    { criteria: { from: 'order@zomato.com' }, label: 'Shopping' },
+    {
+      criteria: {
+        domain: ['amazon.com', 'amazon.in', 'flipkart.com', 'myntra.com'],
+      },
+      labels: ['Shopping'],
+    },
+    {
+      criteria: { from: ['noreply@swiggy.in', 'order@zomato.com'] },
+      labels: ['Shopping'],
+    },
 
     // --- Finance & Payments ---
     {
-      criteria: { subject: 'bank statement' },
-      label: 'Finance',
+      criteria: { subject: ['bank statement', 'credit card statement'] },
+      labels: ['Finance', 'Important'], // Example of applying multiple labels
       isPriority: true,
     },
     {
-      criteria: { subject: 'credit card statement' },
-      label: 'Finance',
-      isPriority: true,
+      criteria: {
+        domain: [
+          'hdfcbank.com',
+          'icicibank.com',
+          'sbi.co.in',
+          'axisbank.com',
+          'kotak.com',
+          'paytm.com',
+          'phonepe.com',
+        ],
+      },
+      labels: ['Finance'],
     },
-    { criteria: { domain: 'hdfcbank.com' }, label: 'Finance' },
-    { criteria: { domain: 'icicibank.com' }, label: 'Finance' },
-    { criteria: { domain: 'sbi.co.in' }, label: 'Finance' },
-    { criteria: { domain: 'axisbank.com' }, label: 'Finance' },
-    { criteria: { domain: 'kotak.com' }, label: 'Finance' },
-    { criteria: { domain: 'paytm.com' }, label: 'Finance' },
-    { criteria: { domain: 'phonepe.com' }, label: 'Finance' },
-    { criteria: { from: 'gpay-noreply@google.com' }, label: 'Finance' },
+    { criteria: { from: 'gpay-noreply@google.com' }, labels: ['Finance'] },
 
     // --- Investments ---
-    { criteria: { domain: 'groww.in' }, label: 'Investments' },
-    { criteria: { domain: 'zerodha.com' }, label: 'Investments' },
-    { criteria: { domain: 'upstox.com' }, label: 'Investments' },
-    { criteria: { domain: 'camsonline.com' }, label: 'Investments' },
-    { criteria: { subject: 'mutual fund' }, label: 'Investments' },
+    {
+      criteria: {
+        domain: ['groww.in', 'zerodha.com', 'upstox.com', 'camsonline.com'],
+      },
+      labels: ['Investments'],
+    },
+    { criteria: { subject: 'mutual fund' }, labels: ['Investments'] },
 
     // --- Bills & Utilities ---
-    { criteria: { subject: 'electricity bill' }, label: 'Bills' },
-    { criteria: { subject: 'internet bill' }, label: 'Bills' },
-    { criteria: { subject: 'payment due' }, label: 'Bills' },
-    { criteria: { from: 'incometaxindia.gov.in' }, label: 'Finance' },
+    {
+      criteria: {
+        subject: ['electricity bill', 'internet bill', 'payment due'],
+      },
+      labels: ['Bills'],
+    },
+    { criteria: { from: 'incometaxindia.gov.in' }, labels: ['Finance'] },
+    {
+      criteria: { domain: ['netflix.com', 'primevideo.com', 'spotify.com'] },
+      labels: ['Bills'],
+    },
 
     // --- Travel ---
-    { criteria: { domain: 'irctc.co.in' }, label: 'Travel' },
-    { criteria: { subject: 'flight ticket' }, label: 'Travel' },
-    { criteria: { subject: 'hotel booking' }, label: 'Travel' },
-    { criteria: { from: 'booking.com' }, label: 'Travel' },
-    { criteria: { from: 'makemytrip.com' }, label: 'Travel' },
-
-    // --- Subscriptions & Entertainment ---
-    { criteria: { domain: 'netflix.com' }, label: 'Bills' },
-    { criteria: { domain: 'primevideo.com' }, label: 'Bills' },
-    { criteria: { domain: 'spotify.com' }, label: 'Bills' },
+    { criteria: { domain: 'irctc.co.in' }, labels: ['Travel'] },
+    {
+      criteria: { subject: ['flight ticket', 'hotel booking'] },
+      labels: ['Travel'],
+    },
+    {
+      criteria: { from: ['booking.com', 'makemytrip.com'] },
+      labels: ['Travel'],
+    },
 
     // --- Learning & Content ---
-    { criteria: { domain: 'medium.com' }, label: 'Learning' },
-    { criteria: { domain: 'dev.to' }, label: 'Learning' },
-    { criteria: { domain: 'udemy.com' }, label: 'Learning' },
-    { criteria: { domain: 'coursera.org' }, label: 'Learning' },
+    {
+      criteria: {
+        domain: [
+          'stackoverflow.com',
+          'medium.com',
+          'dev.to',
+          'udemy.com',
+          'coursera.org',
+        ],
+      },
+      labels: ['Learning'],
+    },
 
     // --- OTPs (One-Time Passwords) ---
-    { criteria: { subject: 'OTP' }, label: 'OTP', isPriority: true },
     {
-      criteria: { subject: 'one-time password' },
-      label: 'OTP',
+      criteria: { subject: ['OTP', 'one-time password'] },
+      labels: ['OTP'],
       isPriority: true,
     },
     {
       criteria: { body: 'is your one-time password' },
-      label: 'OTP',
+      labels: ['OTP'],
       isPriority: true,
     },
 
     // --- Generic Categories (lower priority) ---
-    { criteria: { category: 'promotions' }, label: 'Promotions' },
-    { criteria: { category: 'forums' }, label: 'Forums' },
-    { criteria: { subject: 'newsletter' }, label: 'Newsletters' },
+    { criteria: { category: 'promotions' }, labels: ['Promotions'] },
+    { criteria: { category: 'forums' }, labels: ['Forums'] },
+    { criteria: { subject: 'newsletter' }, labels: ['Newsletters'] },
   ],
 };
 

@@ -34,15 +34,35 @@ const RuleEngine = {
     const rules =
       (CONFIG && CONFIG.RULES && CONFIG.RULES.CLASSIFICATION_RULES) || [];
 
+    /**
+     * Checks if an email value matches a rule criterion, which can be a string or an array.
+     * @param {string|string[]} criterion The rule criterion value.
+     * @param {string} emailValue The value from the email.
+     * @param {'includes'|'exact'} matchType The type of match to perform.
+     * @returns {boolean} True if it matches.
+     */
+    const _matchesCriterion = (criterion, emailValue, matchType) => {
+      if (!criterion) return true; // No criterion means it's a pass for this check.
+      const values = Array.isArray(criterion) ? criterion : [criterion];
+
+      if (matchType === 'includes') {
+        return values.some((v) => emailValue.includes(String(v).toLowerCase()));
+      }
+      if (matchType === 'exact') {
+        return values.some((v) => String(v).toLowerCase() === emailValue);
+      }
+      return false;
+    };
+
     for (const rule of rules) {
-      if (!rule || !rule.label) continue;
+      if (!rule || !rule.labels || rule.labels.length === 0) continue;
 
       const criteria = rule.criteria || {};
       let matched = true;
 
       if (
         criteria.from &&
-        !from.includes(String(criteria.from).toLowerCase())
+        !_matchesCriterion(criteria.from, from, 'includes')
       ) {
         matched = false;
       }
@@ -50,7 +70,7 @@ const RuleEngine = {
       if (
         matched &&
         criteria.domain &&
-        domain !== String(criteria.domain).toLowerCase()
+        !_matchesCriterion(criteria.domain, domain, 'exact')
       ) {
         matched = false;
       }
@@ -58,7 +78,7 @@ const RuleEngine = {
       if (
         matched &&
         criteria.subject &&
-        !subject.includes(String(criteria.subject).toLowerCase())
+        !_matchesCriterion(criteria.subject, subject, 'includes')
       ) {
         matched = false;
       }
@@ -66,7 +86,7 @@ const RuleEngine = {
       if (
         matched &&
         criteria.body &&
-        !bodyText.includes(String(criteria.body).toLowerCase())
+        !_matchesCriterion(criteria.body, bodyText, 'includes')
       ) {
         matched = false;
       }
@@ -82,8 +102,12 @@ const RuleEngine = {
       }
 
       if (matched) {
-        labelsToApply.add(rule.label);
-        Logger.debug(`Matched label "${rule.label}" for subject "${subject}"`);
+        rule.labels.forEach((label) => labelsToApply.add(label));
+        AppLogger.debug(
+          `Matched rule for subject "${subject}", applying labels: [${rule.labels.join(
+            ', '
+          )}]`
+        );
 
         if (rule.isPriority) {
           break;
