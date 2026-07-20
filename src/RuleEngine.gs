@@ -12,10 +12,18 @@ const RuleEngine = {
   classifyThread(thread) {
     const labelsToApply = new Set();
 
-    const firstMessage = thread.getMessages()[0];
+    const messages = thread.getMessages();
+    if (!messages || messages.length === 0) {
+      AppLogger.warn(
+        `Skipping thread with ID ${thread.getId()} because it has no messages.`
+      );
+      return { labels: [], from: '', domain: '' };
+    }
+    const firstMessage = messages[0];
+
     const subject = (thread.getFirstMessageSubject() || '').toLowerCase();
 
-    const fromRaw = (firstMessage.getFrom() || '').toLowerCase();
+    const fromRaw = firstMessage.getFrom() || '';
     const from = Utils.normalizeEmail(fromRaw);
     const domain = Utils.getDomainFromEmail(fromRaw);
 

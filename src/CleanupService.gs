@@ -189,16 +189,33 @@ const CleanupService = {
       return false;
     }
 
-    if (CONFIG?.SAFETY?.ALLOW_DELETING_UNREAD === false && thread.isUnread()) {
+    if (CONFIG.SAFETY.ALLOW_DELETING_UNREAD === false && thread.isUnread()) {
       AppLogger.debug(
         `  > Skipping trash for unread thread as per safety config: "${subject}"`
       );
       return false;
     }
 
-    const safeLabels = (SAFE_LABELS || []).map((l) => String(l).toLowerCase());
+    // Compute safe lists on-the-fly from CONFIG to ensure robustness against script load order issues.
+    const safeSenders = (CONFIG.SAFETY.SAFE_SENDERS || []).map((e) =>
+      e.toLowerCase()
+    );
+    const safeDomains = (CONFIG.SAFETY.SAFE_DOMAINS || []).map((d) =>
+      d.toLowerCase()
+    );
+    const safeLabels = [
+      ...new Set([
+        'Work',
+        'Finance',
+        'Bills',
+        'Insurance',
+        'Investments',
+        ...(CONFIG.SAFETY.PROTECTED_LABELS || []),
+      ]),
+    ].map((l) => l.toLowerCase());
+
     const matchedSafeLabel = threadLabelNames.find((label) =>
-      safeLabels.includes(String(label).toLowerCase())
+      safeLabels.includes(label)
     );
     if (matchedSafeLabel) {
       AppLogger.debug(
@@ -207,14 +224,14 @@ const CleanupService = {
       return false;
     }
 
-    if ((SAFE_SENDER_EMAILS || []).includes(from)) {
+    if (safeSenders.includes(from)) {
       AppLogger.debug(
         `  > Skipping trash for thread from safe sender "${from}": "${subject}"`
       );
       return false;
     }
 
-    if (domain && (SAFE_SENDER_DOMAINS || []).includes(domain)) {
+    if (domain && safeDomains.includes(domain)) {
       AppLogger.debug(
         `  > Skipping trash for thread from safe domain "${domain}": "${subject}"`
       );

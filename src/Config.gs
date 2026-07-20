@@ -352,38 +352,3 @@ const CONFIG = {
     { criteria: { subject: 'newsletter' }, labels: ['Newsletters'] },
   ],
 };
-
-/**
- * A consolidated list of all sender emails that should prevent an email from being trashed.
- * This is pre-calculated here for efficiency.
- * @type {string[]}
- */
-const SAFE_SENDER_EMAILS = CONFIG.SAFETY.SAFE_SENDERS.map((email) =>
-  email.toLowerCase()
-);
-
-/**
- * A consolidated list of all sender domains that should prevent an email from being trashed.
- * This is pre-calculated here for efficiency.
- * @type {string[]}
- */
-const SAFE_SENDER_DOMAINS = CONFIG.SAFETY.SAFE_DOMAINS.map((domain) =>
-  domain.toLowerCase()
-);
-
-/**
- * A consolidated list of all labels that should prevent an email from being trashed.
- * This combines user-defined protected labels with critical system labels.
- * This is pre-calculated here for efficiency.
- * @type {string[]}
- */
-const SAFE_LABELS = [
-  ...new Set([
-    'Work',
-    'Finance',
-    'Bills',
-    'Insurance',
-    'Investments',
-    ...CONFIG.SAFETY.PROTECTED_LABELS,
-  ]),
-].map((label) => label.toLowerCase());
