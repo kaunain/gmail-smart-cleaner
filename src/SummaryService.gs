@@ -1,63 +1,61 @@
 /**
- * @fileoverview Service for generating and sending summary reports.
+ * @fileoverview Builds and sends summary reports for cleanup runs.
  */
 
 const SummaryService = {
   /**
-   * Generates and sends a summary report.
-   * @param {string} period The reporting period (e.g., "Weekly", "Monthly").
-   * @param {object} stats The statistics from the cleanup run.
+   * Sends a summary email when enabled.
+   *
+   * @param {Object} stats Current run statistics.
    */
-  sendSummaryReport(period, stats) {
-    const recipient = CONFIG.REPORTING.SUMMARY_EMAIL;
-    if (!recipient) {
-      Logger.log('Summary email recipient not set. Skipping report.');
-      return;
-    }
-
-    Logger.log(`Generating ${period} summary report for ${recipient}...`);
-
-    const subject = `Gmail Smart Cleaner: ${period} Summary`;
-    const htmlBody = this.createHtmlReport(period, stats);
-
-    if (CONFIG.EXECUTION.DRY_RUN) {
-      Logger.log(`[DRY RUN] Would send summary email to ${recipient}.`);
-      Logger.debug(`[DRY RUN] Email Subject: ${subject}`);
-    } else {
-      try {
-        Utils.withRetry(
-          () =>
-            MailApp.sendEmail({
-              to: recipient,
-              subject: subject,
-              htmlBody: htmlBody,
-            }),
-          `send ${period} summary report`
-        );
-        Logger.log(`${period} summary report sent successfully.`);
-      } catch (e) {
-        Logger.error(
-          `Failed to send summary email to ${recipient} after multiple retries.`,
-          e
-        );
+  sendSummary(stats) {
+    try {
+      if (
+        !CONFIG ||
+        !CONFIG.EXECUTION ||
+        !CONFIG.EXECUTION.SEND_SUMMARY_EMAIL
+      ) {
+        Logger.debug('Summary email is disabled.');
+        return;
       }
+
+      const recipient =
+        (CONFIG.NOTIFICATIONS && CONFIG.NOTIFICATIONS.SUMMARY_EMAIL) ||
+        Session.getActiveUser().getEmail();
+
+      const subject = `Gmail Smart Cleaner Summary - ${new Date().toLocaleDateString()}`;
+      const body = this.buildPlainTextSummary(stats);
+
+      MailApp.sendEmail(recipient, subject, body);
+      Logger.log(`Summary email sent to ${recipient}`);
+    } catch (error) {
+      Logger.error(`Failed to send summary email: ${error.message}`);
     }
   },
 
   /**
-   * Creates the HTML content for the summary report email.
-   * @param {string} period The reporting period.
-   * @param {object} stats The statistics object.
-   * @returns {string} The HTML content of the report.
+   * Builds a plain text summary body.
+   *
+   * @param {Object} stats Current run statistics.
+   * @returns {string}
    */
-  createHtmlReport(period, stats) {
-    const template = HtmlService.createTemplateFromFile(
-      'SummaryReportTemplate'
-    );
-    template.period = period;
-    template.stats = stats;
-    template.runtime = stats.totalRuntime || 0;
-    template.runDate = new Date().toLocaleDateString();
-    return template.evaluate().getContent();
+  buildPlainTextSummary(stats) {
+    const lines = [];
+    lines.push('Gmail Smart Cleaner Summary');
+    lines.push('================================');
+    lines.push(`Processed: ${stats.processedCount || 0}`);
+    lines.push(`Labeled: ${stats.threadsLabeledCount || 0}`);
+    lines.push(`Archived: ${stats.archivedCount || 0}`);
+    lines.push(`Trashed: ${stats.trashedCount || 0}`);
+    lines.push(`Skipped: ${stats.skippedCount || 0}`);
+    lines.push(`Errors: ${stats.errorsCount || 0}`);
+    lines.push('');
+    lines.push(`Dry Run: ${CONFIG?.EXECUTION?.DRY_RUN ? 'Yes' : 'No'}`);
+    lines.push(`Runtime: ${Utils.getRuntimeSeconds(stats)} sec`);
+    lines.push('');
+    lines.push('Generated at:');
+    lines.push(new Date().toString());
+
+    return lines.join('\n');
   },
 };

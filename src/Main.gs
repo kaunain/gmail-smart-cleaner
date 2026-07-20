@@ -77,18 +77,6 @@ function runHealthCheck() {
  * It's designed to be resumable to handle large inboxes without timing out.
  */
 function gmailCleanup() {
-  // Pre-flight check to ensure the Advanced Gmail Service is enabled.
-  if (typeof Gmail === 'undefined') {
-    const errorMessage =
-      'The Advanced Gmail Service is not enabled. Please open the Apps Script editor, go to "Services +", and add the "Gmail API".';
-    Logger.error(errorMessage);
-    _sendErrorNotification(
-      'Configuration Error: Advanced Service Disabled',
-      errorMessage
-    );
-    return;
-  }
-
   const lock = LockService.getScriptLock();
   const lockAcquired = lock.tryLock(10000); // Wait 10 seconds for lock
 
@@ -129,7 +117,7 @@ function gmailCleanup() {
     startTime: new Date().getTime(),
   };
 
-  const continuationToken = savedState.continuationToken || null;
+  let offset = stats.processedCount || 0;
   const BATCH_SIZE = CONFIG.EXECUTION.BATCH_SIZE;
 
   let searchQuery = 'in:inbox';
@@ -138,51 +126,30 @@ function gmailCleanup() {
   }
 
   try {
-    let threads;
-    let currentToken = continuationToken;
+    let threads = [];
 
     do {
-      const listOptions = {
-        q: searchQuery,
-        maxResults: BATCH_SIZE,
-      };
-      if (currentToken) {
-        listOptions.pageToken = currentToken;
+      threads = GmailApp.search(searchQuery, offset, BATCH_SIZE);
+
+      if (threads.length === 0) {
+        break;
       }
 
-      const response = Gmail.Users.Threads.list('me', listOptions);
-      currentToken = response.nextPageToken;
+      Logger.log(`Processing ${threads.length} thread(s).`);
 
-      if (response.threads && response.threads.length > 0) {
-        const threadIds = response.threads.map((t) => t.id);
-        threads = threadIds.map((id) => GmailApp.getThreadById(id));
-        Logger.log(`Processing a batch of ${threads.length} threads.`);
-        CleanupService.processThreads(threads, stats);
-      } else {
-        threads = []; // No more threads found, ensures loop condition is false
-      }
+      CleanupService.processThreads(threads, stats);
+
+      offset += threads.length;
 
       if (Utils.isTimeRunningOut()) {
-        if (currentToken) {
-          const newState = { continuationToken: currentToken, stats: stats };
-          properties.setProperty('cleanupState', JSON.stringify(newState));
-          ScriptApp.newTrigger('gmailCleanup')
-            .timeBased()
-            .after(60 * 1000)
-            .create();
-          Logger.log(
-            'Approaching execution time limit. Pausing. Will resume automatically in 1 minute.'
-          );
-        } else {
-          // Ran out of time but also finished processing all threads in the last batch.
-          Logger.log(
-            'Approaching time limit, but no more threads to process. Finishing run.'
-          );
-        }
-        lock.releaseLock();
-        return; // Exit and wait for the next trigger or finish.
+        properties.setProperty(
+          'cleanupState',
+          JSON.stringify({ stats: stats })
+        );
+        Logger.log('Execution time reached. Stopping current run.');
+        break;
       }
-    } while (currentToken);
+    } while (threads.length === BATCH_SIZE);
 
     const totalRuntime = Math.round(
       (new Date().getTime() - stats.startTime) / 1000
