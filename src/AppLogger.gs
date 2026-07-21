@@ -1,6 +1,6 @@
 /**
  * @fileoverview A centralized logging utility for the script.
- * It uses the native Logger for the script editor and console for Stackdriver logging.
+ * It uses the native Logger for the Apps Script editor logs.
  */
 
 const AppLogger = {
@@ -10,8 +10,7 @@ const AppLogger = {
    */
   log(message) {
     const logMessage = `[INFO] ${message}`;
-    Logger.log(logMessage); // For Apps Script editor logs
-    console.log(logMessage); // For Stackdriver logs
+    Logger.log(logMessage);
   },
 
   /**
@@ -22,7 +21,6 @@ const AppLogger = {
     if (CONFIG.EXECUTION.DEBUG) {
       const logMessage = `[DEBUG] ${message}`;
       Logger.log(logMessage);
-      console.log(logMessage);
     }
   },
 
@@ -33,7 +31,6 @@ const AppLogger = {
   warn(message) {
     const logMessage = `[WARN] ${message}`;
     Logger.log(logMessage);
-    console.warn(logMessage); // Use console.warn for warnings
   },
 
   /**
@@ -43,13 +40,10 @@ const AppLogger = {
    */
   error(message, error) {
     const errorMessage = `[ERROR] ${message}`;
-    // Log to both default logger (for script editor) and console.error (for Stackdriver)
     Logger.log(errorMessage);
-    console.error(errorMessage);
 
     if (error && error.stack) {
       Logger.log(error.stack);
-      console.error(error.stack);
     }
   },
 };
