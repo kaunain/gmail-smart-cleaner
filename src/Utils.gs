@@ -73,18 +73,18 @@ const Utils = {
         return fn();
       } catch (e) {
         const isLastAttempt = i === MAX_RETRIES - 1;
-        Logger.error(
+        AppLogger.error(
           `Operation "${description}" failed on attempt ${i + 1}. Error: ${e.message}`
         );
         if (isLastAttempt) {
-          Logger.error(
+          AppLogger.error(
             `All ${MAX_RETRIES} retries failed for "${description}". Rethrowing error.`
           );
           throw e;
         }
         const backoffTime =
           INITIAL_BACKOFF_MS * Math.pow(2, i) + Math.random() * 1000;
-        Logger.log(`Retrying in ${Math.round(backoffTime / 1000)}s...`);
+        AppLogger.log(`Retrying in ${Math.round(backoffTime / 1000)}s...`);
         this.sleep(backoffTime / 1000);
       }
     }
@@ -133,6 +133,16 @@ const Utils = {
       );
     }
 
+    // Check that all protected labels are also required labels
+    const protectedLabels = CONFIG.SAFETY.PROTECTED_LABELS;
+    const missingProtected = protectedLabels.filter(
+      (l) => !requiredLabels.includes(l)
+    );
+    if (missingProtected.length > 0) {
+      errors.push(
+        `The following labels are in SAFETY.PROTECTED_LABELS but not in LABELS.REQUIRED_LABELS: ${missingProtected.join(', ')}`
+      );
+    }
     return errors;
   },
 

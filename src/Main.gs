@@ -54,6 +54,16 @@ function installTriggers() {
  */
 function runHealthCheck() {
   AppLogger.log('====== Starting Health Check ======');
+
+  // 0. Check DRY_RUN status
+  if (CONFIG.EXECUTION.DRY_RUN) {
+    AppLogger.warn(
+      'DRY_RUN is currently ENABLED. The script will not make any changes.'
+    );
+  } else {
+    AppLogger.log('DRY_RUN is DISABLED. The script will perform real actions.');
+  }
+
   // 1. Validate configuration
   const configErrors = Utils.validateConfig();
   if (configErrors.length > 0) {
@@ -63,7 +73,31 @@ function runHealthCheck() {
     AppLogger.log('Configuration validation passed.');
   }
 
-  // 2. Check triggers (basic check)
+  // 2. Check for Advanced Gmail Service
+  try {
+    // Accessing a property on Gmail will throw an error if the service is not enabled.
+    // This is a simple way to check for its existence.
+    // eslint-disable-next-line no-unused-expressions
+    Gmail.Users;
+    AppLogger.log('Advanced Gmail API service is enabled.');
+  } catch (e) {
+    AppLogger.error(
+      'Advanced Gmail API service is NOT enabled. Please enable it in the editor under Services -> Gmail API.'
+    );
+  }
+
+  // 3. Check if required labels exist
+  const missingLabels = LabelService.getMissingLabels();
+  if (missingLabels.length > 0) {
+    AppLogger.error(
+      `Found ${missingLabels.length} missing labels: ${missingLabels.join(', ')}`
+    );
+    AppLogger.error('Please run runInitialSetup() to create them.');
+  } else {
+    AppLogger.log('All required labels exist.');
+  }
+
+  // 4. Check triggers
   const triggers = ScriptApp.getProjectTriggers();
   if (triggers.length > 0) {
     AppLogger.log(`Found ${triggers.length} installed trigger(s):`);

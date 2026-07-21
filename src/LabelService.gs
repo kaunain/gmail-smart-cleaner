@@ -14,11 +14,11 @@ const LabelService = {
     const cache = CacheService.getScriptCache();
     const cachedLabels = cache.get('userLabels');
     if (cachedLabels) {
-      Logger.debug('Loaded user labels from cache.');
+      AppLogger.debug('Loaded user labels from cache.');
       this._userLabelsCache = JSON.parse(cachedLabels);
       return this._userLabelsCache;
     }
-    Logger.debug('Fetching user labels from Gmail API.');
+    AppLogger.debug('Fetching user labels from Gmail API.');
     const labels = Utils.withRetry(
       () => GmailApp.getUserLabels().map((label) => label.getName()),
       'fetch user labels'
@@ -36,7 +36,7 @@ const LabelService = {
    * Creates any missing labels.
    */
   ensureLabelsExist() {
-    Logger.log('Checking for required Gmail labels...');
+    AppLogger.log('Checking for required Gmail labels...');
     const existingLabels = this._getUserLabels();
     const existingLabelsLower = existingLabels.map((name) =>
       name.toLowerCase()
@@ -51,20 +51,35 @@ const LabelService = {
               `create label "${labelName}"`
             );
           }
-          Logger.log(`Created label: "${labelName}"`);
+          AppLogger.log(`Created label: "${labelName}"`);
           createdCount++;
         } catch (e) {
-          Logger.error(`Failed to create label: "${labelName}"`, e);
+          AppLogger.error(`Failed to create label: "${labelName}"`, e);
         }
       }
     });
     if (createdCount > 0) {
-      Logger.log(`Successfully created ${createdCount} new label(s).`);
+      AppLogger.log(`Successfully created ${createdCount} new label(s).`);
       // Invalidate cache if we created new labels
       CacheService.getScriptCache().remove('userLabels');
       this._userLabelsCache = null;
     } else {
-      Logger.log('All required labels already exist.');
+      AppLogger.log('All required labels already exist.');
     }
+  },
+  /**
+   * Checks for any required labels that are missing from the user's account.
+   * @returns {string[]} An array of missing label names.
+   */
+  getMissingLabels() {
+    AppLogger.debug('Checking for missing labels...');
+    const existingLabels = this._getUserLabels();
+    const existingLabelsLower = new Set(
+      existingLabels.map((name) => name.toLowerCase())
+    );
+    const missing = CONFIG.LABELS.REQUIRED_LABELS.filter(
+      (labelName) => !existingLabelsLower.has(labelName.toLowerCase())
+    );
+    return missing;
   },
 };

@@ -114,7 +114,9 @@ This guide provides a professional setup using `clasp`, a command-line tool for 
     - Customize `SAFE_SENDERS`, `SAFE_DOMAINS`, and other rules to fit your needs.
     - Save the file and push the changes: `npm run push`.
 
-4.  **Install Triggers**: To automate the script, run the `installTriggers` function from the Apps Script editor. This will set up the daily cleanup and summary report triggers.
+4.  **(Recommended) Verify Your Setup**: After customizing your configuration, run the `runHealthCheck` function from the Apps Script editor. This will validate your rules and ensure all parts of the script are ready to run.
+
+5.  **Install Triggers**: To automate the script, run the `installTriggers` function from the Apps Script editor. This will set up the daily cleanup and summary report triggers.
 
 Your Gmail Smart Cleaner is now fully configured and automated!
 
