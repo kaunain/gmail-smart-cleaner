@@ -131,8 +131,8 @@ const CONFIG = {
       'Bills',
       'Insurance',
       'Investments',
-      'Personal',
-      'Important',
+      'Personal', // Personal, non-work related
+      'Priority', // For high-priority threads
     ],
 
     /**
@@ -166,7 +166,7 @@ const CONFIG = {
       'Social',
       'OTP',
       'Personal',
-      'Important', // A generic important label
+      'Priority', // A generic priority label
       'Promotions', // For promotion-type emails
       'Forums', // For forum/group discussions
       'Large Attachments',
@@ -188,7 +188,7 @@ const CONFIG = {
       { label: 'OTP', days: 7 },
       { label: 'Promotions', days: 30 },
       { label: 'Social', days: 90 },
-      { label: 'Junk Mail', days: 7 },
+      { label: 'Junk Mail', days: 3 },
     ],
 
     /**
@@ -199,8 +199,7 @@ const CONFIG = {
      *   Defaults to false (only read threads are archived).
      */
     ARCHIVE_RULES: [
-      { label: 'Newsletters', archiveUnread: true },
-      { label: 'Promotions', archiveUnread: true },
+      { label: 'Newsletters', archiveUnread: true }, // Archive newsletters even if unread
       { label: 'Social', archiveUnread: false }, // Only archive read social emails
       { label: 'Forums', archiveUnread: true },
     ],
@@ -246,7 +245,7 @@ const CONFIG = {
     },
     {
       criteria: { from: 'noreply@google.com', subject: 'security alert' },
-      labels: ['Important'],
+      labels: ['Priority'],
       isPriority: true,
     },
 
@@ -279,7 +278,7 @@ const CONFIG = {
     // --- Finance & Payments ---
     {
       criteria: { subject: ['bank statement', 'credit card statement'] },
-      labels: ['Finance', 'Important'], // Example of applying multiple labels
+      labels: ['Finance', 'Priority'], // Example of applying multiple labels
       isPriority: true,
     },
     {

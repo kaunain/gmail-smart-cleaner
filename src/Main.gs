@@ -128,8 +128,8 @@ function gmailCleanup() {
 
   const stats = savedState.stats || {
     processedCount: 0,
-    threadsLabeledCount: 0,
     archivedCount: 0,
+    labeledByLabel: {},
     trashedCount: 0,
     skippedCount: 0,
     startTime: new Date().getTime(),
@@ -158,6 +158,20 @@ function gmailCleanup() {
 
   AppLogger.debug(`Using search query: "${searchQuery}"`);
 
+  // Get total count at the beginning for a complete overview.
+  let totalThreadsToProcess = 0;
+  try {
+    AppLogger.log('Calculating total number of threads to process...');
+    totalThreadsToProcess = GmailApp.search(searchQuery).length;
+    AppLogger.log(
+      `Found ${totalThreadsToProcess} total threads matching criteria.`
+    );
+  } catch (e) {
+    AppLogger.warning(
+      'Could not calculate total thread count upfront. This can happen on very large inboxes. Proceeding with batch processing.'
+    );
+  }
+
   try {
     let threads = [];
 
@@ -179,22 +193,24 @@ function gmailCleanup() {
       // The script normally skips emails marked as 'important' by Gmail for safety.
       // This logic intercepts them and applies our own 'Important' label
       // so the action is visible and logged, instead of being skipped silently.
-      const importantLabelName = 'Important';
-      const importantLabel = GmailApp.getUserLabelByName(importantLabelName);
-      if (importantLabel) {
+      const priorityLabelName = 'Priority';
+      const priorityLabel = GmailApp.getUserLabelByName(priorityLabelName);
+      if (priorityLabel) {
         for (const thread of threads) {
           // Check if Gmail considers it important AND we haven't already labeled it.
-          const hasImportantLabel = thread
+          const hasPriorityLabel = thread
             .getLabels()
-            .some((l) => l.getName() === importantLabelName);
-          if (thread.isImportant() && !hasImportantLabel) {
+            .some((l) => l.getName() === priorityLabelName);
+          if (thread.isImportant() && !hasPriorityLabel) {
             AppLogger.log(
-              `Gmail-marked important thread found: "${thread.getFirstMessageSubject()}". Applying '${importantLabelName}' label.`
+              `Gmail-marked important thread found: "${thread.getFirstMessageSubject()}". Applying '${priorityLabelName}' label.`
             );
             if (!CONFIG.EXECUTION.DRY_RUN) {
-              thread.addLabel(importantLabel);
+              thread.addLabel(priorityLabel);
+              // Manually update stats for this pre-processing step
+              stats.labeledByLabel[priorityLabelName] =
+                (stats.labeledByLabel[priorityLabelName] || 0) + 1;
             }
-            stats.threadsLabeledCount++; // Increment stat for newly labeled thread
           }
         }
       }
@@ -224,21 +240,45 @@ function gmailCleanup() {
         `Processing a batch of ${threadsToProcess.length} thread(s).`
       );
 
+      // If debug mode is on, log the subjects of threads being processed.
+      if (CONFIG.EXECUTION.DEBUG && threadsToProcess.length > 0) {
+        AppLogger.log('--- Threads in this batch ---');
+        threadsToProcess.forEach((thread, index) => {
+          AppLogger.log(
+            `  [${index + 1}] Subject: "${thread.getFirstMessageSubject()}"`
+          );
+        });
+        AppLogger.log('-----------------------------');
+      }
+
       // By capturing stats before and after, we can log the actions taken within this specific batch.
-      const statsBefore = { ...stats };
+      const statsBefore = {
+        ...stats,
+        labeledByLabel: { ...stats.labeledByLabel },
+      };
 
       CleanupService.processThreads(threadsToProcess, stats);
 
       const processedInBatch =
         stats.processedCount - statsBefore.processedCount;
-      const labeledInBatch =
-        stats.threadsLabeledCount - statsBefore.threadsLabeledCount;
+
+      let totalLabeledInBatch = 0;
+      for (const label in stats.labeledByLabel) {
+        const after = stats.labeledByLabel[label] || 0;
+        const before = statsBefore.labeledByLabel[label] || 0;
+        if (after > before) {
+          totalLabeledInBatch += after - before;
+        }
+      }
+
       const archivedInBatch = stats.archivedCount - statsBefore.archivedCount;
       const trashedInBatch = stats.trashedCount - statsBefore.trashedCount;
       const skippedInBatch = stats.skippedCount - statsBefore.skippedCount;
-      AppLogger.log(
-        `  > Batch actions: Processed: ${processedInBatch}, Labeled: ${labeledInBatch}, Archived: ${archivedInBatch}, Trashed: ${trashedInBatch}, Skipped: ${skippedInBatch}`
-      );
+      let batchLog = `  > Batch actions: Processed: ${processedInBatch}, Archived: ${archivedInBatch}, Trashed: ${trashedInBatch}, Skipped: ${skippedInBatch}`;
+      if (totalLabeledInBatch > 0) {
+        batchLog += `, Labeled: ${totalLabeledInBatch}`;
+      }
+      AppLogger.log(batchLog);
 
       offset += threadsToProcess.length;
 
@@ -262,15 +302,45 @@ function gmailCleanup() {
       }
     } while (threads.length === BATCH_SIZE);
 
+    AppLogger.log('====== Gmail Cleanup Complete ======');
+
     const totalRuntime = Math.round(
       (new Date().getTime() - stats.startTime) / 1000
     );
-    AppLogger.log(
-      `Processed: ${stats.processedCount}, Labeled: ${stats.threadsLabeledCount}, Archived: ${stats.archivedCount}, Trashed: ${stats.trashedCount}, Skipped: ${stats.skippedCount}`
-    );
-    AppLogger.log(`Total runtime: ${totalRuntime} seconds.`);
+    AppLogger.log('====== Final Execution Summary ======');
+    AppLogger.log(`- Initial Threads Found: ${totalThreadsToProcess}`);
+    AppLogger.log(`- Total Threads Processed: ${stats.processedCount}`);
 
-    AppLogger.log('====== Gmail Cleanup Complete ======');
+    // Discrepancy check
+    if (
+      totalThreadsToProcess > 0 &&
+      totalThreadsToProcess !== stats.processedCount
+    ) {
+      AppLogger.log(
+        '  (Note: Processed count does not match initial count due to processing limits or script timeout.)'
+      );
+    }
+
+    AppLogger.log('- Threads Labeled (by Label):');
+    const labeledEntries = Object.entries(stats.labeledByLabel);
+    if (labeledEntries.length > 0) {
+      labeledEntries.forEach(([label, count]) => {
+        if (count > 0) AppLogger.log(`    - ${label}: ${count}`);
+      });
+    } else {
+      AppLogger.log('    (None)');
+    }
+
+    AppLogger.log(`- Threads Archived: ${stats.archivedCount}`);
+    AppLogger.log(`- Threads Trashed: ${stats.trashedCount}`);
+    AppLogger.log(
+      `- Threads Skipped (due to safety rules): ${stats.skippedCount}`
+    );
+    AppLogger.log(`- Total Runtime: ${totalRuntime} seconds.`);
+    AppLogger.log('=====================================');
+
+    // Perform housekeeping by removing any unused labels
+    _cleanupEmptyLabels();
 
     _updateExecutionHistory({
       ...stats,
@@ -376,6 +446,52 @@ function cleanupAttachments() {
     lock.releaseLock();
     AppLogger.log('====== Attachment Cleanup Complete ======');
   }
+}
+
+/**
+ * Finds and removes any script-managed labels that are no longer associated with any threads.
+ * This is a housekeeping function to prevent clutter. It will not remove protected labels.
+ * @private
+ */
+function _cleanupEmptyLabels() {
+  if (CONFIG.EXECUTION.DRY_RUN) {
+    AppLogger.log('[DRY RUN] Skipping cleanup of empty labels.');
+    return;
+  }
+
+  AppLogger.log('====== Starting Empty Label Cleanup ======');
+  const protectedLabels = new Set(CONFIG.SAFETY.PROTECTED_LABELS);
+  let removedCount = 0;
+
+  CONFIG.LABELS.REQUIRED_LABELS.forEach((labelName) => {
+    if (protectedLabels.has(labelName)) {
+      AppLogger.debug(`Skipping protected label: "${labelName}"`);
+      return;
+    }
+
+    try {
+      const label = GmailApp.getUserLabelByName(labelName);
+      if (label) {
+        // Check if the label has any threads. getThreads(0, 1) is efficient.
+        if (label.getThreads(0, 1).length === 0) {
+          AppLogger.log(`Label "${labelName}" is empty. Deleting it.`);
+          label.deleteLabel();
+          removedCount++;
+        }
+      }
+    } catch (e) {
+      AppLogger.warning(
+        `Could not process label "${labelName}" for cleanup. It might have been deleted already. Error: ${e.message}`
+      );
+    }
+  });
+
+  if (removedCount > 0) {
+    AppLogger.log(`Removed ${removedCount} empty label(s).`);
+  } else {
+    AppLogger.log('No empty labels found to remove.');
+  }
+  AppLogger.log('====== Empty Label Cleanup Complete ======');
 }
 
 /**
