@@ -26,7 +26,7 @@ const CleanupService = {
         // 1) Classify thread
         const classification = RuleEngine.classifyThread(thread);
         const newLabels = classification.labels || [];
-        const from = (classification.from || '').toLowerCase();
+        const from = classification.from || '';
         const domain = classification.domain || '';
 
         if (newLabels.length > 0) {
@@ -79,28 +79,38 @@ const CleanupService = {
                   `  > Matched TRASH rule: {label: "${rule.label}", days: ${rule.days}}. Queued for trash.`
                 );
                 actionTaken = true;
+                break; // Exit trash rules loop since an action was taken
               } else {
                 stats.skippedCount++; // Reason is logged inside isSafeToDelete
               }
             }
-            break;
           }
         }
 
-        // 3) Archive rules (only if not trashed and thread is read)
-        if (!actionTaken && !thread.isUnread()) {
+        // 3) Archive rules (only if not trashed)
+        if (!actionTaken) {
           const archiveRules = CONFIG?.RULES?.ARCHIVE_RULES || [];
           for (const rule of archiveRules) {
             if (!rule || !rule.label) continue;
 
             if (allLabels.has(String(rule.label).toLowerCase())) {
-              threadsToArchive.push(thread);
-              stats.archivedCount++;
-              AppLogger.debug(
-                `  > Matched ARCHIVE rule: {label: "${rule.label}"}. Queued for archive.`
-              );
-              actionTaken = true;
-              break;
+              // Check if the thread can be archived based on its read status and the rule's setting
+              const isRead = !thread.isUnread();
+              const archiveUnread = rule.archiveUnread === true; // Default to false if not present
+
+              if (isRead || archiveUnread) {
+                threadsToArchive.push(thread);
+                stats.archivedCount++;
+                AppLogger.debug(
+                  `  > Matched ARCHIVE rule: {label: "${rule.label}", archiveUnread: ${archiveUnread}}. Queued for archive.`
+                );
+                actionTaken = true;
+                break;
+              } else {
+                AppLogger.debug(
+                  `  > Matched ARCHIVE rule for label "${rule.label}" but skipping unread thread.`
+                );
+              }
             }
           }
         }
@@ -203,17 +213,10 @@ const CleanupService = {
     const safeDomains = (CONFIG.SAFETY.SAFE_DOMAINS || []).map((d) =>
       d.toLowerCase()
     );
-    const safeLabels = [
-      ...new Set([
-        'Work',
-        'Finance',
-        'Bills',
-        'Insurance',
-        'Investments',
-        ...(CONFIG.SAFETY.PROTECTED_LABELS || []),
-      ]),
-    ].map((l) => l.toLowerCase());
-
+    // All protected labels are now defined directly in CONFIG.SAFETY.PROTECTED_LABELS
+    const safeLabels = (CONFIG.SAFETY.PROTECTED_LABELS || []).map((l) =>
+      l.toLowerCase()
+    );
     const matchedSafeLabel = threadLabelNames.find((label) =>
       safeLabels.includes(label)
     );

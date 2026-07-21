@@ -122,10 +122,18 @@ const CONFIG = {
     /**
      * @type {string[]}
      * A list of labels to protect. Threads with these labels will NEVER be
-     * moved to trash. The script automatically adds labels like 'Finance',
-     * 'Work', and 'Bills' to this list.
+     * moved to trash by a TRASH_RULE. It's recommended to include all
+     * labels that handle important information.
      */
-    PROTECTED_LABELS: ['Insurance', 'Investments', 'Personal', 'Important'],
+    PROTECTED_LABELS: [
+      'Work',
+      'Finance',
+      'Bills',
+      'Insurance',
+      'Investments',
+      'Personal',
+      'Important',
+    ],
 
     /**
      * @type {boolean}
@@ -185,13 +193,16 @@ const CONFIG = {
 
     /**
      * Rules for archiving threads.
-     * A thread is archived if it has the specified label AND is read.
+     * A thread is archived if it has the specified label.
+     * - `label`: The label to match.
+     * - `archiveUnread`: (Optional) If true, unread threads will also be archived.
+     *   Defaults to false (only read threads are archived).
      */
     ARCHIVE_RULES: [
-      { label: 'Newsletters' },
-      { label: 'Promotions' },
-      { label: 'Social' },
-      { label: 'Forums' },
+      { label: 'Newsletters', archiveUnread: true },
+      { label: 'Promotions', archiveUnread: true },
+      { label: 'Social', archiveUnread: false }, // Only archive read social emails
+      { label: 'Forums', archiveUnread: true },
     ],
 
     /**
@@ -221,9 +232,10 @@ const CONFIG = {
    *   - `domain`: Matches the sender's domain.
    *   - `subject`: Matches a keyword in the email subject.
    *   - `body`: Matches a keyword in the email body.
-   *   - `category`: Matches a Gmail category (e.g., 'promotions', 'social').
-   * `label`: The label to apply if the criteria are met.
+   * `labels`: An array of labels to apply if the criteria are met.
    * `isPriority`: (Optional) If true, stop processing further rules for this email.
+   * Note: Matching by Gmail category is not supported due to API limitations
+   * that would impact performance. Use subject, from, or body rules instead.
    */
   CLASSIFICATION_RULES: [
     // --- High Priority & Security ---
@@ -251,7 +263,6 @@ const CONFIG = {
       },
       labels: ['Social'],
     },
-    { criteria: { category: 'social' }, labels: ['Social'] }, // Fallback
 
     // --- Shopping ---
     {
@@ -346,9 +357,8 @@ const CONFIG = {
       isPriority: true,
     },
 
-    // --- Generic Categories (lower priority) ---
-    { criteria: { category: 'promotions' }, labels: ['Promotions'] },
-    { criteria: { category: 'forums' }, labels: ['Forums'] },
+    // --- Generic Fallbacks (lower priority) ---
+    // This rule acts as a catch-all for common email types.
     { criteria: { subject: 'newsletter' }, labels: ['Newsletters'] },
   ],
 };

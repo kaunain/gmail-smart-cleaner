@@ -99,16 +99,6 @@ const RuleEngine = {
         matched = false;
       }
 
-      if (
-        matched &&
-        criteria.category &&
-        !existingLabels.includes(
-          `^smartlabel_${String(criteria.category).toLowerCase()}`
-        )
-      ) {
-        matched = false;
-      }
-
       if (matched) {
         rule.labels.forEach((label) => labelsToApply.add(label));
         AppLogger.debug(
