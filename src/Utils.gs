@@ -115,13 +115,18 @@ const Utils = {
     }
     // Check that all labels in rules exist in REQUIRED_LABELS
     const allRuleLabels = [
-      ...CONFIG.RULES.TRASH_RULES.map((r) => r.label),
-      ...CONFIG.RULES.ARCHIVE_RULES.map((r) => r.label),
-      ...CONFIG.CLASSIFICATION_RULES.map((r) => r.label),
-    ];
-    if (CONFIG.RULES.ATTACHMENT_CLEANUP.ENABLED) {
-      allRuleLabels.push(CONFIG.RULES.ATTACHMENT_CLEANUP.LABEL);
-    }
+  ...CONFIG.RULES.TRASH_RULES.map(r => r.label),
+  ...CONFIG.RULES.ARCHIVE_RULES.map(r => r.label),
+  ...CONFIG.CLASSIFICATION_RULES.flatMap(
+    r => r.labels || []
+  ),
+];
+
+if (CONFIG.RULES.ATTACHMENT_CLEANUP.ENABLED) {
+  allRuleLabels.push(
+    CONFIG.RULES.ATTACHMENT_CLEANUP.LABEL
+  );
+}
     const requiredLabels = CONFIG.LABELS.REQUIRED_LABELS;
     const missingLabels = [...new Set(allRuleLabels)].filter(
       (l) => !requiredLabels.includes(l)
