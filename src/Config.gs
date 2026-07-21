@@ -360,5 +360,10 @@ const CONFIG = {
     // --- Generic Fallbacks (lower priority) ---
     // This rule acts as a catch-all for common email types.
     { criteria: { subject: 'newsletter' }, labels: ['Newsletters'] },
+
+    // This is a powerful fallback rule. Most marketing and promotional emails
+    // are legally required to have an "unsubscribe" link.
+    // This will catch many emails that your other rules might have missed.
+    { criteria: { body: 'unsubscribe' }, labels: ['Promotions'] },
   ],
 };

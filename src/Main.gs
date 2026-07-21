@@ -138,10 +138,23 @@ function gmailCleanup() {
   let offset = stats.processedCount || 0;
   const BATCH_SIZE = CONFIG.EXECUTION.BATCH_SIZE;
 
+  // Dynamically build the exclusion query for already processed labels
+  let exclusionQuery = '';
+  if (
+    CONFIG.LABELS.REQUIRED_LABELS &&
+    CONFIG.LABELS.REQUIRED_LABELS.length > 0
+  ) {
+    exclusionQuery = CONFIG.LABELS.REQUIRED_LABELS.map(
+      (label) => `-label:"${label}"`
+    ).join(' ');
+  }
+
   let searchQuery = 'in:inbox';
   if (CONFIG.EXECUTION.SEARCH_OLDER_THAN_DAYS > 0) {
     searchQuery += ` older_than:${CONFIG.EXECUTION.SEARCH_OLDER_THAN_DAYS}d`;
   }
+  // Exclude threads that already have any of the script's labels
+  searchQuery += ` ${exclusionQuery}`;
 
   AppLogger.debug(`Using search query: "${searchQuery}"`);
 
@@ -158,6 +171,34 @@ function gmailCleanup() {
         AppLogger.log('No more threads found matching the search query.');
         break;
       }
+
+      // Reverse the threads array to process oldest emails first
+      threads.reverse();
+
+      // --- Pre-processing for Important Emails ---
+      // The script normally skips emails marked as 'important' by Gmail for safety.
+      // This logic intercepts them and applies our own 'Important' label
+      // so the action is visible and logged, instead of being skipped silently.
+      const importantLabelName = 'Important';
+      const importantLabel = GmailApp.getUserLabelByName(importantLabelName);
+      if (importantLabel) {
+        for (const thread of threads) {
+          // Check if Gmail considers it important AND we haven't already labeled it.
+          const hasImportantLabel = thread
+            .getLabels()
+            .some((l) => l.getName() === importantLabelName);
+          if (thread.isImportant() && !hasImportantLabel) {
+            AppLogger.log(
+              `Gmail-marked important thread found: "${thread.getFirstMessageSubject()}". Applying '${importantLabelName}' label.`
+            );
+            if (!CONFIG.EXECUTION.DRY_RUN) {
+              thread.addLabel(importantLabel);
+            }
+            stats.threadsLabeledCount++; // Increment stat for newly labeled thread
+          }
+        }
+      }
+      // All threads (some now newly labeled) are passed on for further processing.
 
       const maxToProcess = CONFIG.EXECUTION.MAX_THREADS_TO_PROCESS;
       let threadsToProcess = threads;
