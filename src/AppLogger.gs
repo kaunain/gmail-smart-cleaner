@@ -1,5 +1,6 @@
 /**
- * @fileoverview A simple logging utility for the script.
+ * @fileoverview A centralized logging utility for the script.
+ * It uses the native Logger for the script editor and console for Stackdriver logging.
  */
 
 const AppLogger = {
@@ -8,7 +9,9 @@ const AppLogger = {
    * @param {string} message The message to log.
    */
   log(message) {
-    Logger.log(`[INFO] ${message}`);
+    const logMessage = `[INFO] ${message}`;
+    Logger.log(logMessage); // For Apps Script editor logs
+    console.log(logMessage); // For Stackdriver logs
   },
 
   /**
@@ -16,9 +19,11 @@ const AppLogger = {
    * @param {string} message The message to log.
    */
   debug(message) {
-    // Only log if DEBUG mode is enabled.
-    // Calls Logger.log directly to avoid double-prefixing.
-    if (CONFIG.EXECUTION.DEBUG) Logger.log(`[DEBUG] ${message}`);
+    if (CONFIG.EXECUTION.DEBUG) {
+      const logMessage = `[DEBUG] ${message}`;
+      Logger.log(logMessage);
+      console.log(logMessage);
+    }
   },
 
   /**
@@ -26,17 +31,19 @@ const AppLogger = {
    * @param {string} message The message to log.
    */
   warn(message) {
-    Logger.log(`[WARN] ${message}`);
+    const logMessage = `[WARN] ${message}`;
+    Logger.log(logMessage);
+    console.warn(logMessage); // Use console.warn for warnings
   },
 
   /**
    * Logs an error message.
    * @param {string} message The error message.
-   * @param {Error|object} [error] Optional error object to log its stack.
+   * @param {Error|object} [error] Optional error object to log its stack for more context.
    */
   error(message, error) {
-    // Log to both default logger (for script editor) and console.error (for Stackdriver).
     const errorMessage = `[ERROR] ${message}`;
+    // Log to both default logger (for script editor) and console.error (for Stackdriver)
     Logger.log(errorMessage);
     console.error(errorMessage);
 
