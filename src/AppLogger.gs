@@ -9,8 +9,7 @@ const AppLogger = {
    * @param {string} message The message to log.
    */
   log(message) {
-    const logMessage = `[INFO] ${message}`;
-    Logger.log(logMessage);
+    console.info(`[INFO] ${message}`);
   },
 
   /**
@@ -19,8 +18,7 @@ const AppLogger = {
    */
   debug(message) {
     if (CONFIG.EXECUTION.DEBUG) {
-      const logMessage = `[DEBUG] ${message}`;
-      Logger.log(logMessage);
+      console.debug(`[DEBUG] ${message}`);
     }
   },
 
@@ -29,8 +27,7 @@ const AppLogger = {
    * @param {string} message The message to log.
    */
   warn(message) {
-    const logMessage = `[WARN] ${message}`;
-    Logger.log(logMessage);
+    console.warn(`[WARN] ${message}`);
   },
 
   /**
@@ -39,11 +36,10 @@ const AppLogger = {
    * @param {Error|object} [error] Optional error object to log its stack for more context.
    */
   error(message, error) {
-    const errorMessage = `[ERROR] ${message}`;
-    Logger.log(errorMessage);
+    console.error(`[ERROR] ${message}`);
 
     if (error && error.stack) {
-      Logger.log(error.stack);
+      console.error(error.stack);
     }
   },
 };
