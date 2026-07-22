@@ -28,8 +28,10 @@ const AppLogger = {
     if (!CONFIG.EXECUTION.DEBUG) return;
     if (typeof console !== 'undefined' && console && typeof console.debug === 'function') {
       console.debug(`[DEBUG] ${message}`);
+    } else if (typeof console !== 'undefined' && console && typeof console.log === 'function') {
+      console.log(message);
     } else {
-      this._write('log', `[DEBUG] ${message}`);
+      this._write('log', message);
     }
   },
 
