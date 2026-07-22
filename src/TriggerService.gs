@@ -28,7 +28,7 @@ const TriggerService = {
   installTriggers() {
     this.deleteAllTriggers();
 
-    Logger.log('Installing new triggers...');
+    AppLogger.log('Installing new triggers...');
 
     // Daily cleanup trigger, runs at a random minute between 2-3 AM to avoid hitting Google's quotas at the same time as other scripts.
     ScriptApp.newTrigger('gmailCleanup')
@@ -37,7 +37,7 @@ const TriggerService = {
       .atHour(2)
       .nearMinute(30)
       .create();
-    Logger.log(
+    AppLogger.log(
       'Installed daily trigger for "gmailCleanup" to run around 2:30 AM.'
     );
 
@@ -47,7 +47,7 @@ const TriggerService = {
       .onWeekDay(ScriptApp.WeekDay.SUNDAY)
       .atHour(4)
       .create();
-    Logger.log(
+    AppLogger.log(
       'Installed weekly trigger for "sendWeeklySummary" to run on Sundays around 4 AM.'
     );
 
@@ -57,7 +57,7 @@ const TriggerService = {
       .onMonthDay(1)
       .atHour(5)
       .create();
-    Logger.log(
+    AppLogger.log(
       'Installed monthly trigger for "sendMonthlySummary" to run on the 1st of each month around 5 AM.'
     );
 
@@ -68,11 +68,11 @@ const TriggerService = {
         .onWeekDay(ScriptApp.WeekDay.SATURDAY)
         .atHour(3)
         .create();
-      Logger.log(
+      AppLogger.log(
         'Installed weekly trigger for "cleanupAttachments" to run on Saturdays around 3 AM.'
       );
     }
 
-    Logger.log('All triggers installed successfully.');
+    AppLogger.log('All triggers installed successfully.');
   },
 };
