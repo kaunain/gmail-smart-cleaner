@@ -4,7 +4,8 @@
 
 const RuleEngine = {
   /**
-   * Classifies a Gmail thread into labels based on CONFIG.RULES.
+   * Classifies a Gmail thread into labels based on CONFIG.CLASSIFICATION_RULES
+   * or CONFIG.RULES.CLASSIFICATION_RULES.
    *
    * @param {GoogleAppsScript.Gmail.GmailThread} thread Gmail thread to classify.
    * @returns {{labels: string[], from: string, domain: string}}
@@ -60,10 +61,27 @@ const RuleEngine = {
       .getLabels()
       .map((l) => l.getName().toLowerCase());
 
-    const rules =
-      (CONFIG && CONFIG.RULES && CONFIG.RULES.CLASSIFICATION_RULES) || [];
+    const rules = Utils.getClassificationRules();
+    const rulesSource = CONFIG?.CLASSIFICATION_RULES
+      ? 'CONFIG.CLASSIFICATION_RULES'
+      : CONFIG?.RULES?.CLASSIFICATION_RULES
+        ? 'CONFIG.RULES.CLASSIFICATION_RULES'
+        : 'none';
 
     if (CONFIG.EXECUTION.DEBUG) {
+      if (rulesSource === 'CONFIG.RULES.CLASSIFICATION_RULES') {
+        AppLogger.debug(
+          '    > Warning: classification rules were found under CONFIG.RULES.CLASSIFICATION_RULES. Please move them to CONFIG.CLASSIFICATION_RULES or keep this fallback until configuration is corrected.'
+        );
+      }
+      if (rules.length === 0) {
+        AppLogger.debug(
+          '    > Warning: No classification rules were found. Check CONFIG.CLASSIFICATION_RULES.'
+        );
+      }
+      AppLogger.debug(
+        `    > Loaded ${rules.length} classification rule(s) from ${rulesSource}.`
+      );
       AppLogger.debug(`    > From: ${fromRaw} (Normalized: ${from})`);
       AppLogger.debug(`    > Domain: ${domain}`);
       AppLogger.debug(`    > Subject: ${subject}`);
@@ -109,7 +127,9 @@ const RuleEngine = {
         return match;
       }
       if (matchType === 'exact') {
-        const match = values.some((v) => String(v).toLowerCase() === emailValue);
+        const match = values.some(
+          (v) => String(v).toLowerCase() === emailValue
+        );
         if (CONFIG.EXECUTION.DEBUG) {
           AppLogger.debug(
             `      > [exact] Checking if "${emailValue}" is an exact match for any of [${values.join(
@@ -138,7 +158,9 @@ const RuleEngine = {
         return match;
       }
       if (CONFIG.EXECUTION.DEBUG) {
-        AppLogger.debug(`      > Unknown matchType "${matchType}". Returning false.`);
+        AppLogger.debug(
+          `      > Unknown matchType "${matchType}". Returning false.`
+        );
       }
       return false;
     };
@@ -157,14 +179,16 @@ const RuleEngine = {
       let matched = true;
 
       if (criteria.from) {
-        if (CONFIG.EXECUTION.DEBUG) AppLogger.debug(`    - Checking 'from' criterion...`);
+        if (CONFIG.EXECUTION.DEBUG)
+          AppLogger.debug(`    - Checking 'from' criterion...`);
         if (!_matchesCriterion(criteria.from, from, 'includes')) {
           matched = false;
         }
       }
 
       if (matched && criteria.domain) {
-        if (CONFIG.EXECUTION.DEBUG) AppLogger.debug(`    - Checking 'domain' criterion...`);
+        if (CONFIG.EXECUTION.DEBUG)
+          AppLogger.debug(`    - Checking 'domain' criterion...`);
         if (!_matchesCriterion(criteria.domain, domain, 'domain')) {
           matched = false;
         } else {
@@ -176,7 +200,8 @@ const RuleEngine = {
       }
 
       if (matched && criteria.subject) {
-        if (CONFIG.EXECUTION.DEBUG) AppLogger.debug(`    - Checking 'subject' criterion...`);
+        if (CONFIG.EXECUTION.DEBUG)
+          AppLogger.debug(`    - Checking 'subject' criterion...`);
         if (!_matchesCriterion(criteria.subject, subject, 'includes')) {
           matched = false;
         } else {
@@ -188,7 +213,8 @@ const RuleEngine = {
       }
 
       if (matched && criteria.body) {
-        if (CONFIG.EXECUTION.DEBUG) AppLogger.debug(`    - Checking 'body' criterion...`);
+        if (CONFIG.EXECUTION.DEBUG)
+          AppLogger.debug(`    - Checking 'body' criterion...`);
         if (!_matchesCriterion(criteria.body, bodyText, 'includes')) {
           matched = false;
         } else {

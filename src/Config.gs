@@ -224,18 +224,6 @@ const CONFIG = {
   // ==========================================================================
   // EMAIL CLASSIFICATION RULES
   // ==========================================================================
-  /**
-   * The core of the smart organization. The script processes these rules in order.
-   * `criteria`: Conditions to match against an email. All criteria must be met.
-   *   - `from`: Matches the sender's email address.
-   *   - `domain`: Matches the sender's domain.
-   *   - `subject`: Matches a keyword in the email subject.
-   *   - `body`: Matches a keyword in the email body.
-   * `labels`: An array of labels to apply if the criteria are met.
-   * `isPriority`: (Optional) If true, stop processing further rules for this email.
-   * Note: Matching by Gmail category is not supported due to API limitations
-   * that would impact performance. Use subject, from, or body rules instead.
-   */
   CLASSIFICATION_RULES: [
     // --- High Priority & Security ---
     {
@@ -377,6 +365,38 @@ const CONFIG = {
     // --- Generic Fallbacks (lower priority) ---
     // This rule acts as a catch-all for common email types.
     { criteria: { subject: 'newsletter' }, labels: ['Newsletters'] },
+    {
+      criteria: {
+        subject: [
+          'sale',
+          'offer',
+          'deal',
+          'discount',
+          'promo',
+          'promotion',
+          'limited time offer',
+          'buy now',
+          'free shipping',
+          'exclusive offer',
+        ],
+      },
+      labels: ['Promotions'],
+    },
+    {
+      criteria: {
+        body: [
+          'unsubscribe',
+          'manage preferences',
+          'view in browser',
+          'special offer',
+          'limited time offer',
+          'free shipping',
+          'exclusive offer',
+          'save up to',
+        ],
+      },
+      labels: ['Promotions'],
+    },
 
     // This is a powerful fallback rule. Most marketing and promotional emails
     // are legally required to have an "unsubscribe" link.
@@ -384,3 +404,6 @@ const CONFIG = {
     { criteria: { body: 'unsubscribe' }, labels: ['Promotions'] },
   ],
 };
+
+// Keep the old nested path for compatibility, but prefer CONFIG.CLASSIFICATION_RULES.
+CONFIG.RULES.CLASSIFICATION_RULES = CONFIG.CLASSIFICATION_RULES;

@@ -114,10 +114,12 @@ const Utils = {
       errors.push('ATTACHMENT_CLEANUP.MIN_SIZE_MB must be greater than 0.');
     }
     // Check that all labels in rules exist in REQUIRED_LABELS
+    const classificationRules = Utils.getClassificationRules();
+
     const allRuleLabels = [
       ...CONFIG.RULES.TRASH_RULES.map((r) => r.label),
       ...CONFIG.RULES.ARCHIVE_RULES.map((r) => r.label),
-      ...CONFIG.CLASSIFICATION_RULES.flatMap((r) => r.labels || []),
+      ...classificationRules.flatMap((r) => r.labels || []),
     ];
 
     if (CONFIG.RULES.ATTACHMENT_CLEANUP.ENABLED) {
@@ -144,6 +146,20 @@ const Utils = {
       );
     }
     return errors;
+  },
+
+  /**
+   * Returns the active classification rules from CONFIG.
+   * Supports both CONFIG.CLASSIFICATION_RULES and the legacy
+   * CONFIG.RULES.CLASSIFICATION_RULES path.
+   * @returns {Object[]}
+   */
+  getClassificationRules() {
+    return (
+      CONFIG.CLASSIFICATION_RULES ||
+      (CONFIG.RULES && CONFIG.RULES.CLASSIFICATION_RULES) ||
+      []
+    );
   },
 
   /**
