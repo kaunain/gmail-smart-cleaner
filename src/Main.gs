@@ -548,21 +548,11 @@ function _cleanupEmptyLabels() {
   );
   let removedCount = 0;
 
-  const requiredLabels = new Set(
-    (CONFIG.LABELS.REQUIRED_LABELS || []).map((labelName) =>
-      labelName.toLowerCase()
-    )
-  );
-
   const userLabels = GmailApp.getUserLabels();
   userLabels.forEach((label) => {
     const labelName = label.getName();
     const labelNameLower = labelName.toLowerCase();
 
-    if (requiredLabels.has(labelNameLower)) {
-      AppLogger.debug(`Skipping required label: "${labelName}"`);
-      return;
-    }
     if (protectedLabels.has(labelNameLower)) {
       AppLogger.debug(`Skipping protected label: "${labelName}"`);
       return;
