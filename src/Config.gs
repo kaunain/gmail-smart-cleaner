@@ -44,10 +44,10 @@ const CONFIG = {
     /**
      * @type {number}
      * The script will only process threads older than this number of days.
-     * Set to 0 to process all threads. A value like 7 is a good balance
-     * between processing recent items and avoiding active conversations.
+     * Set to 0 to process all threads. This is more aggressive and will
+     * allow cleanup of recent unwanted messages as well.
      */
-    SEARCH_OLDER_THAN_DAYS: 7,
+    SEARCH_OLDER_THAN_DAYS: 0,
 
     /**
      * @type {number}
@@ -186,8 +186,12 @@ const CONFIG = {
      */
     TRASH_RULES: [
       { label: 'OTP', days: 7 },
-      { label: 'Promotions', days: 30 },
-      { label: 'Social', days: 90 },
+      { label: 'Promotions', days: 15 },
+      { label: 'Newsletters', days: 14 },
+      { label: 'Social', days: 30 },
+      { label: 'Shopping', days: 30 },
+      { label: 'Forums', days: 30 },
+      { label: 'Travel', days: 60 },
       { label: 'Junk Mail', days: 0 }, // Trash immediately
     ],
 
@@ -260,12 +264,40 @@ const CONFIG = {
     // --- Shopping ---
     {
       criteria: {
-        domain: ['amazon.com', 'amazon.in', 'flipkart.com', 'myntra.com'],
+        domain: [
+          'amazon.com',
+          'amazon.in',
+          'flipkart.com',
+          'myntra.com',
+          'ebay.com',
+          'aliexpress.com',
+          'ajio.com',
+          'ajio.in',
+          'shopify.com',
+          'nykaa.com',
+          'paytm.com',
+          'swiggy.com',
+          'zomato.com',
+        ],
       },
       labels: ['Shopping'],
     },
     {
       criteria: { from: ['noreply@swiggy.in', 'order@zomato.com'] },
+      labels: ['Shopping'],
+    },
+    {
+      criteria: {
+        subject: [
+          'order confirmation',
+          'your order',
+          'shipping confirmation',
+          'receipt',
+          'payment received',
+          'delivery scheduled',
+          'track your order',
+        ],
+      },
       labels: ['Shopping'],
     },
 
