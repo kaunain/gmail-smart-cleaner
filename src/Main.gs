@@ -160,6 +160,16 @@ function gmailCleanup() {
     AppLogger.log('Starting a new cleanup run.');
   }
 
+  const classificationRules =
+    CONFIG.CLASSIFICATION_RULES ||
+    (CONFIG.RULES && CONFIG.RULES.CLASSIFICATION_RULES) ||
+    [];
+  if (CONFIG.EXECUTION.DEBUG) {
+    AppLogger.debug(
+      `Loaded ${classificationRules.length} classification rule(s) for this run.`
+    );
+  }
+
   const defaultStats = {
     processedCount: 0,
     archivedCount: 0,
@@ -172,6 +182,7 @@ function gmailCleanup() {
   const stats = { ...defaultStats, ...(savedState.stats || {}) };
   stats.labeledByLabel = stats.labeledByLabel || {};
   stats.errorsCount = stats.errorsCount || 0;
+  const BATCH_SIZE = CONFIG.EXECUTION.BATCH_SIZE;
   const managedLabels = (CONFIG.LABELS.REQUIRED_LABELS || [])
     .map((l) => `label:"${l.replace(/"/g, '\\"')}"`)
     .join(' OR ');
@@ -324,34 +335,52 @@ function gmailCleanup() {
     AppLogger.log(`- Threads Found: ${totalThreadsFound}`);
     AppLogger.log(`- Threads Loaded: ${threadsFoundAndLoaded}`);
     AppLogger.log(`- Threads Classified: ${stats.processedCount}`);
-    AppLogger.log(`- Threads Matching Rules (new labels applied): ${labeledCount}`);
+    AppLogger.log(
+      `- Threads Matching Rules (new labels applied): ${labeledCount}`
+    );
     if (labeledCount === 0) {
-      AppLogger.log('  - WHY: No threads matched any CLASSIFICATION_RULES, or all matched threads already had the required labels.');
+      AppLogger.log(
+        '  - WHY: No threads matched any CLASSIFICATION_RULES, or all matched threads already had the required labels.'
+      );
     }
 
     AppLogger.log(`- Threads Selected For Trash: ${stats.trashedCount}`);
     if (stats.trashedCount === 0) {
-      AppLogger.log('  - WHY: No threads met the criteria for any TRASH_RULES (e.g., wrong label, not old enough), or all that did were protected by safety rules.');
+      AppLogger.log(
+        '  - WHY: No threads met the criteria for any TRASH_RULES (e.g., wrong label, not old enough), or all that did were protected by safety rules.'
+      );
     }
 
-    AppLogger.log(`- Threads Actually Trashed: ${CONFIG.EXECUTION.DRY_RUN ? 0 : stats.trashedCount}`);
+    AppLogger.log(
+      `- Threads Actually Trashed: ${CONFIG.EXECUTION.DRY_RUN ? 0 : stats.trashedCount}`
+    );
     if (CONFIG.EXECUTION.DRY_RUN && stats.trashedCount > 0) {
-      AppLogger.log('  - WHY: DRY_RUN is enabled, so no threads were actually trashed.');
+      AppLogger.log(
+        '  - WHY: DRY_RUN is enabled, so no threads were actually trashed.'
+      );
     }
 
     AppLogger.log(`- Threads Selected For Archive: ${stats.archivedCount}`);
     if (stats.archivedCount === 0) {
-      AppLogger.log('  - WHY: No threads met the criteria for any ARCHIVE_RULES (e.g., wrong label, unread status).');
+      AppLogger.log(
+        '  - WHY: No threads met the criteria for any ARCHIVE_RULES (e.g., wrong label, unread status).'
+      );
     }
 
-    AppLogger.log(`- Threads Actually Archived: ${CONFIG.EXECUTION.DRY_RUN ? 0 : stats.archivedCount}`);
+    AppLogger.log(
+      `- Threads Actually Archived: ${CONFIG.EXECUTION.DRY_RUN ? 0 : stats.archivedCount}`
+    );
     if (CONFIG.EXECUTION.DRY_RUN && stats.archivedCount > 0) {
-      AppLogger.log('  - WHY: DRY_RUN is enabled, so no threads were actually archived.');
+      AppLogger.log(
+        '  - WHY: DRY_RUN is enabled, so no threads were actually archived.'
+      );
     }
 
     AppLogger.log(`- Threads Skipped: ${stats.skippedCount}`);
     if (stats.skippedCount === 0) {
-      AppLogger.log('  - WHY: No threads were skipped by safety checks or rule conflicts.');
+      AppLogger.log(
+        '  - WHY: No threads were skipped by safety checks or rule conflicts.'
+      );
     }
 
     AppLogger.log(`- Threads Failed: ${stats.errorsCount || 0}`);

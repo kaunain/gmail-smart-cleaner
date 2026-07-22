@@ -20,21 +20,31 @@ const CleanupService = {
         const threadId = thread.getId();
         const subject = thread.getFirstMessageSubject() || '(No Subject)';
         const lastMessageDate = thread.getLastMessageDate();
-        const ageInDays = (new Date() - lastMessageDate) / (1000 * 60 * 60 * 24);
+        const ageInDays =
+          (new Date() - lastMessageDate) / (1000 * 60 * 60 * 24);
 
         if (CONFIG.EXECUTION.DEBUG) {
-          AppLogger.debug(`\n------------------------------------------------------------------`);
+          AppLogger.debug(
+            `\n------------------------------------------------------------------`
+          );
           AppLogger.debug(`[START THREAD] Processing Thread ID: ${threadId}`);
           AppLogger.debug(`  - Subject: "${subject}"`);
-          AppLogger.debug(`  - From: (will be determined during classification)`);
+          AppLogger.debug(
+            `  - From: (will be determined during classification)`
+          );
           AppLogger.debug(`  - Age: ${ageInDays.toFixed(2)} days`);
           AppLogger.debug(
-            `  - Current Labels: [${thread.getLabels().map((l) => l.getName()).join(', ')}]`
+            `  - Current Labels: [${thread
+              .getLabels()
+              .map((l) => l.getName())
+              .join(', ')}]`
           );
           AppLogger.debug(`  - Is Unread: ${thread.isUnread()}`);
           AppLogger.debug(`  - Is Important (Gmail): ${thread.isImportant()}`);
           AppLogger.debug(`  - Has Starred: ${thread.hasStarredMessages()}`);
-          AppLogger.debug(`  - Gmail Category: Not available via API for performance reasons.`);
+          AppLogger.debug(
+            `  - Gmail Category: Not available via API for performance reasons.`
+          );
         }
 
         // 1) Classify thread
@@ -46,6 +56,10 @@ const CleanupService = {
         const matchedDomains = classification.matchedDomains || [];
         const matchedKeywords = classification.matchedKeywords || [];
         const matchedSender = classification.matchedSender || [];
+        const currentLabels = thread.getLabels().map((l) => l.getName());
+        const gmailCategories = [
+          'Not available via API for performance reasons.',
+        ];
 
         if (newLabels.length > 0) {
           for (const labelName of newLabels) {
@@ -77,7 +91,9 @@ const CleanupService = {
         const trashRules = CONFIG?.RULES?.TRASH_RULES || [];
         for (const rule of trashRules) {
           if (CONFIG.EXECUTION.DEBUG) {
-            AppLogger.debug(`  [TRASH RULE CHECK] Evaluating rule: ${JSON.stringify(rule)}`);
+            AppLogger.debug(
+              `  [TRASH RULE CHECK] Evaluating rule: ${JSON.stringify(rule)}`
+            );
           }
           // FIX: The condition `!rule.days` was incorrect as it evaluated to true for `days: 0`.
           // Changed to `rule.days == null` to correctly handle rules that should run immediately.
@@ -91,16 +107,24 @@ const CleanupService = {
           }
 
           if (allLabels.has(String(rule.label).toLowerCase())) {
-            if (CONFIG.EXECUTION.DEBUG) AppLogger.debug(`    - Label Match: TRUE (Thread has label "${rule.label}")`);
+            if (CONFIG.EXECUTION.DEBUG)
+              AppLogger.debug(
+                `    - Label Match: TRUE (Thread has label "${rule.label}")`
+              );
             const thresholdDate = new Date();
             thresholdDate.setDate(thresholdDate.getDate() - Number(rule.days));
 
             if (lastMessageDate < thresholdDate) {
               if (CONFIG.EXECUTION.DEBUG) {
-                AppLogger.debug(`    - Age Match: TRUE (Thread age is greater than ${rule.days} days). Last message: ${lastMessageDate}, Threshold: ${thresholdDate}`);
-                AppLogger.debug(`    - Safety Check: Running isSafeToDelete...`);
+                AppLogger.debug(
+                  `    - Age Match: TRUE (Thread age is greater than ${rule.days} days). Last message: ${lastMessageDate}, Threshold: ${thresholdDate}`
+                );
+                AppLogger.debug(
+                  `    - Safety Check: Running isSafeToDelete...`
+                );
               }
-              if (this.isSafeToDelete(
+              if (
+                this.isSafeToDelete(
                   thread,
                   subject,
                   [...allLabels],
@@ -112,23 +136,33 @@ const CleanupService = {
                 stats.trashedCount++;
                 finalAction = 'Trash';
                 finalReason = `Matched TRASH rule ${JSON.stringify(rule)} and passed safety checks.`;
-                if (CONFIG.EXECUTION.DEBUG) AppLogger.debug(`    - Safety Check Result: PASSED. Action Selected: Trash.`);
+                if (CONFIG.EXECUTION.DEBUG)
+                  AppLogger.debug(
+                    `    - Safety Check Result: PASSED. Action Selected: Trash.`
+                  );
                 actionTaken = true;
                 break; // Exit trash rules loop since an action was taken
               } else {
                 stats.skippedCount++; // Reason is logged inside isSafeToDelete
                 finalAction = 'Keep';
                 finalReason = `Matched TRASH rule ${JSON.stringify(rule)} but failed safety checks.`;
-                if (CONFIG.EXECUTION.DEBUG) AppLogger.debug(`    - Safety Check Result: FAILED. Action Selected: Keep.`);
+                if (CONFIG.EXECUTION.DEBUG)
+                  AppLogger.debug(
+                    `    - Safety Check Result: FAILED. Action Selected: Keep.`
+                  );
               }
             } else {
               if (CONFIG.EXECUTION.DEBUG) {
-                AppLogger.debug(`    - Age Match: FALSE (Thread age is not greater than ${rule.days} days). Last message: ${lastMessageDate}, Threshold: ${thresholdDate}`);
+                AppLogger.debug(
+                  `    - Age Match: FALSE (Thread age is not greater than ${rule.days} days). Last message: ${lastMessageDate}, Threshold: ${thresholdDate}`
+                );
               }
             }
           } else {
             if (CONFIG.EXECUTION.DEBUG) {
-              AppLogger.debug(`    - Label Match: FALSE (Thread does not have label "${rule.label}")`);
+              AppLogger.debug(
+                `    - Label Match: FALSE (Thread does not have label "${rule.label}")`
+              );
             }
           }
         }
@@ -140,14 +174,21 @@ const CleanupService = {
             if (!rule || !rule.label) continue;
 
             if (allLabels.has(String(rule.label).toLowerCase())) {
-              if (CONFIG.EXECUTION.DEBUG) AppLogger.debug(`  [ARCHIVE RULE CHECK] Evaluating rule: ${JSON.stringify(rule)}`);
+              if (CONFIG.EXECUTION.DEBUG)
+                AppLogger.debug(
+                  `  [ARCHIVE RULE CHECK] Evaluating rule: ${JSON.stringify(rule)}`
+                );
               // Check if the thread can be archived based on its read status and the rule's setting
               const isRead = !thread.isUnread();
               const archiveUnread = rule.archiveUnread === true; // Default to false if not present
 
               if (CONFIG.EXECUTION.DEBUG) {
-                AppLogger.debug(`    - Label Match: TRUE (Thread has label "${rule.label}")`);
-                AppLogger.debug(`    - Read Status Check: Thread isRead: ${isRead}, Rule archiveUnread: ${archiveUnread}`);
+                AppLogger.debug(
+                  `    - Label Match: TRUE (Thread has label "${rule.label}")`
+                );
+                AppLogger.debug(
+                  `    - Read Status Check: Thread isRead: ${isRead}, Rule archiveUnread: ${archiveUnread}`
+                );
               }
 
               if (isRead || archiveUnread) {
@@ -155,7 +196,10 @@ const CleanupService = {
                 stats.archivedCount++;
                 finalAction = 'Archive';
                 finalReason = `Matched ARCHIVE rule ${JSON.stringify(rule)}.`;
-                if (CONFIG.EXECUTION.DEBUG) AppLogger.debug(`    - Read Status Result: PASSED. Action Selected: Archive.`);
+                if (CONFIG.EXECUTION.DEBUG)
+                  AppLogger.debug(
+                    `    - Read Status Result: PASSED. Action Selected: Archive.`
+                  );
                 actionTaken = true;
                 break;
               } else {
@@ -177,19 +221,35 @@ const CleanupService = {
           AppLogger.debug(`  - From: ${from}`);
           AppLogger.debug(`  - Age: ${ageInDays.toFixed(2)} days`);
           AppLogger.debug(`  - Current Labels: [${currentLabels.join(', ')}]`);
-          AppLogger.debug(`  - Gmail Categories: [${gmailCategories.join(', ')}]`);
+          AppLogger.debug(
+            `  - Gmail Categories: [${gmailCategories.join(', ')}]`
+          );
           AppLogger.debug(`  - Matched Rules: [${matchedRules.join(' | ')}]`);
-          AppLogger.debug(`  - Matched Domains: [${matchedDomains.join(', ')}]`);
-          AppLogger.debug(`  - Matched Keywords: [${matchedKeywords.join(', ')}]`);
+          AppLogger.debug(
+            `  - Matched Domains: [${matchedDomains.join(', ')}]`
+          );
+          AppLogger.debug(
+            `  - Matched Keywords: [${matchedKeywords.join(', ')}]`
+          );
           AppLogger.debug(`  - Matched Sender: [${matchedSender.join(', ')}]`);
           AppLogger.debug(`  - Selected Action: ${finalAction}`);
           AppLogger.debug(`  - Reason: ${finalReason}`);
           AppLogger.debug(`  - Skipped?: ${finalAction === 'Keep'}`);
-          AppLogger.debug(`  - Why?: ${finalAction === 'Keep' ? finalReason : 'N/A'}`);
-          AppLogger.debug(`  - Trash API Called?: ${finalAction === 'Trash' && !CONFIG.EXECUTION.DRY_RUN}`);
-          AppLogger.debug(`  - Archive API Called?: ${finalAction === 'Archive' && !CONFIG.EXECUTION.DRY_RUN}`);
-          AppLogger.debug(`  - Result: ${CONFIG.EXECUTION.DRY_RUN ? `DRY RUN - Would ${finalAction}` : finalAction}`);
-          AppLogger.debug(`------------------------------------------------------------------`);
+          AppLogger.debug(
+            `  - Why?: ${finalAction === 'Keep' ? finalReason : 'N/A'}`
+          );
+          AppLogger.debug(
+            `  - Trash API Called?: ${finalAction === 'Trash' && !CONFIG.EXECUTION.DRY_RUN}`
+          );
+          AppLogger.debug(
+            `  - Archive API Called?: ${finalAction === 'Archive' && !CONFIG.EXECUTION.DRY_RUN}`
+          );
+          AppLogger.debug(
+            `  - Result: ${CONFIG.EXECUTION.DRY_RUN ? `DRY RUN - Would ${finalAction}` : finalAction}`
+          );
+          AppLogger.debug(
+            `------------------------------------------------------------------`
+          );
         }
       } catch (error) {
         stats.errorsCount = (stats.errorsCount || 0) + 1;
@@ -215,10 +275,14 @@ const CleanupService = {
         );
       });
       if (threadsToTrash.length === 0) {
-        AppLogger.log('Trash API was not called: No threads were selected for trash in this batch.');
+        AppLogger.log(
+          'Trash API was not called: No threads were selected for trash in this batch.'
+        );
       }
       if (threadsToArchive.length === 0) {
-        AppLogger.log('Archive API was not called: No threads were selected for archive in this batch.');
+        AppLogger.log(
+          'Archive API was not called: No threads were selected for archive in this batch.'
+        );
       }
       return;
     }
@@ -230,7 +294,9 @@ const CleanupService = {
       );
       AppLogger.log(`Trashed ${threadsToTrash.length} threads.`);
     } else {
-      AppLogger.log('Trash API was not called: No threads were selected for trash in this batch.');
+      AppLogger.log(
+        'Trash API was not called: No threads were selected for trash in this batch.'
+      );
     }
 
     if (threadsToArchive.length > 0) {
@@ -240,7 +306,9 @@ const CleanupService = {
       );
       AppLogger.log(`Archived ${threadsToArchive.length} threads.`);
     } else {
-      AppLogger.log('Archive API was not called: No threads were selected for archive in this batch.');
+      AppLogger.log(
+        'Archive API was not called: No threads were selected for archive in this batch.'
+      );
     }
 
     labelMap.forEach((labelThreads, labelName) => {
@@ -280,7 +348,9 @@ const CleanupService = {
     }
 
     if (thread.isImportant()) {
-      dlog(`  > [SAFETY CHECK] Result: FALSE. Reason: Thread is marked as important by Gmail.`);
+      dlog(
+        `  > [SAFETY CHECK] Result: FALSE. Reason: Thread is marked as important by Gmail.`
+      );
       return false;
     }
 
