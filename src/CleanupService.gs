@@ -312,9 +312,26 @@ const CleanupService = {
     }
 
     labelMap.forEach((labelThreads, labelName) => {
-      const label = GmailApp.getUserLabelByName(labelName);
+      let label = GmailApp.getUserLabelByName(labelName);
       if (!label) {
-        AppLogger.warn(`Label "${labelName}" not found.`);
+        if (CONFIG.EXECUTION.DRY_RUN) {
+          AppLogger.log(
+            `[DRY RUN] Label "${labelName}" not found, would create it before applying.`
+          );
+          AppLogger.log(
+            `[DRY RUN] Skipping actual label application for "${labelName}".`
+          );
+          return;
+        }
+
+        AppLogger.log(`Label "${labelName}" not found. Creating it now.`);
+        label = Utils.withRetry(
+          () => GmailApp.createLabel(labelName),
+          `create label "${labelName}"`
+        );
+      }
+      if (!label) {
+        AppLogger.warn(`Label "${labelName}" could not be created. Skipping label application.`);
         return;
       }
 

@@ -170,6 +170,10 @@ function gmailCleanup() {
     );
   }
 
+  // Make sure all configured labels exist before processing cleanup.
+  // This prevents failures when labels are referenced in rules but not yet created.
+  LabelService.ensureLabelsExist();
+
   const defaultStats = {
     processedCount: 0,
     archivedCount: 0,
@@ -209,6 +213,15 @@ function gmailCleanup() {
       if (threads.length === 0) {
         AppLogger.log('No more threads found matching the search query.');
         break;
+      }
+
+      // Ensure we process the oldest threads first within each fetched batch.
+      // GmailApp.search does not guarantee oldest-first ordering, so sort here.
+      threads.sort((a, b) =>
+        a.getLastMessageDate() - b.getLastMessageDate()
+      );
+      if (CONFIG.EXECUTION.DEBUG) {
+        AppLogger.debug('Sorted fetched threads from oldest to newest by last message date.');
       }
 
       // --- Pre-processing for Important Emails ---
@@ -528,30 +541,45 @@ function _cleanupEmptyLabels() {
   }
 
   AppLogger.log('====== Starting Empty Label Cleanup ======');
-  const protectedLabels = new Set(CONFIG.SAFETY.PROTECTED_LABELS);
+  const protectedLabels = new Set(
+    (CONFIG.SAFETY.PROTECTED_LABELS || []).map((labelName) =>
+      labelName.toLowerCase()
+    )
+  );
   let removedCount = 0;
 
-  CONFIG.LABELS.REQUIRED_LABELS.forEach((labelName) => {
-    if (protectedLabels.has(labelName)) {
+  const requiredLabels = new Set(
+    (CONFIG.LABELS.REQUIRED_LABELS || []).map((labelName) =>
+      labelName.toLowerCase()
+    )
+  );
+
+  const userLabels = GmailApp.getUserLabels();
+  userLabels.forEach((label) => {
+    const labelName = label.getName();
+    const labelNameLower = labelName.toLowerCase();
+
+    if (requiredLabels.has(labelNameLower)) {
+      AppLogger.debug(`Skipping required label: "${labelName}"`);
+      return;
+    }
+    if (protectedLabels.has(labelNameLower)) {
       AppLogger.debug(`Skipping protected label: "${labelName}"`);
       return;
     }
 
     try {
-      const label = GmailApp.getUserLabelByName(labelName);
-      if (label) {
-        // Use GmailApp.search as it correctly ignores trashed threads, unlike label.getThreads().
-        // This is the reliable way to check if a label is truly not in use.
-        if (GmailApp.search(`label:"${labelName}"`, 0, 1).length === 0) {
-          AppLogger.log(
-            `Label "${labelName}" is empty and not protected. Deleting it.`
-          );
-          label.deleteLabel();
-          removedCount++;
-        }
+      // Use GmailApp.search as it correctly ignores trashed threads, unlike label.getThreads().
+      // This is the reliable way to check if a label is truly not in use.
+      if (GmailApp.search(`label:"${labelName}"`, 0, 1).length === 0) {
+        AppLogger.log(
+          `Label "${labelName}" is empty and not protected. Deleting it.`
+        );
+        label.deleteLabel();
+        removedCount++;
       }
     } catch (e) {
-      AppLogger.warning(
+      AppLogger.warn(
         `Could not process label "${labelName}" for cleanup. It might have been deleted already. Error: ${e.message}`
       );
     }
