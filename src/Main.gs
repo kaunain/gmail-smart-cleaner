@@ -569,8 +569,10 @@ function _cleanupEmptyLabels() {
     }
 
     try {
-      const threadCount = label.getThreads(0, 1).length;
-      if (threadCount === 0) {
+      const escapedLabelName = labelName.replace(/"/g, '\\"');
+      const searchQuery = `label:"${escapedLabelName}" -in:trash -in:spam`;
+      const liveThreads = GmailApp.search(searchQuery, 0, 1).length;
+      if (liveThreads === 0) {
         AppLogger.log(
           `Label "${labelName}" is empty and not protected. Deleting it.`
         );
@@ -578,7 +580,7 @@ function _cleanupEmptyLabels() {
         removedCount++;
       } else if (CONFIG.EXECUTION.DEBUG) {
         AppLogger.debug(
-          `Skipping label "${labelName}" because it still has ${threadCount} thread(s).`
+          `Skipping label "${labelName}" because it still has ${liveThreads} non-trashed/non-spam thread(s).`
         );
       }
     } catch (e) {
