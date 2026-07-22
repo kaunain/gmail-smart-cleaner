@@ -11,13 +11,25 @@ const RuleEngine = {
    */
   classifyThread(thread) {
     const labelsToApply = new Set();
+    const matchedRules = new Set();
+    const matchedDomains = new Set();
+    const matchedKeywords = new Set();
+    const matchedSender = new Set();
 
     const messages = thread.getMessages();
     if (!messages || messages.length === 0) {
       AppLogger.warn(
         `Skipping thread with ID ${thread.getId()} because it has no messages.`
       );
-      return { labels: [], from: '', domain: '' };
+      return {
+        labels: [],
+        from: '',
+        domain: '',
+        matchedRules: [],
+        matchedDomains: [],
+        matchedKeywords: [],
+        matchedSender: [],
+      };
     }
     const firstMessage = messages[0];
     const threadId = thread.getId();
@@ -155,6 +167,11 @@ const RuleEngine = {
         if (CONFIG.EXECUTION.DEBUG) AppLogger.debug(`    - Checking 'domain' criterion...`);
         if (!_matchesCriterion(criteria.domain, domain, 'domain')) {
           matched = false;
+        } else {
+          const values = Array.isArray(criteria.domain)
+            ? criteria.domain
+            : [criteria.domain];
+          values.forEach((value) => matchedDomains.add(String(value)));
         }
       }
 
@@ -162,6 +179,11 @@ const RuleEngine = {
         if (CONFIG.EXECUTION.DEBUG) AppLogger.debug(`    - Checking 'subject' criterion...`);
         if (!_matchesCriterion(criteria.subject, subject, 'includes')) {
           matched = false;
+        } else {
+          const values = Array.isArray(criteria.subject)
+            ? criteria.subject
+            : [criteria.subject];
+          values.forEach((value) => matchedKeywords.add(String(value)));
         }
       }
 
@@ -169,6 +191,11 @@ const RuleEngine = {
         if (CONFIG.EXECUTION.DEBUG) AppLogger.debug(`    - Checking 'body' criterion...`);
         if (!_matchesCriterion(criteria.body, bodyText, 'includes')) {
           matched = false;
+        } else {
+          const values = Array.isArray(criteria.body)
+            ? criteria.body
+            : [criteria.body];
+          values.forEach((value) => matchedKeywords.add(String(value)));
         }
       }
 
@@ -177,6 +204,13 @@ const RuleEngine = {
       }
 
       if (matched) {
+        matchedRules.add(ruleDescription);
+        if (criteria.from) {
+          const values = Array.isArray(criteria.from)
+            ? criteria.from
+            : [criteria.from];
+          values.forEach((value) => matchedSender.add(String(value)));
+        }
         if (CONFIG.EXECUTION.DEBUG) {
           AppLogger.debug(
             `  [RULE MATCH] Matched rule for subject "${subject}", queueing labels: [${labels.join(
@@ -201,6 +235,10 @@ const RuleEngine = {
       labels: [...labelsToApply],
       from,
       domain,
+      matchedRules: [...matchedRules],
+      matchedDomains: [...matchedDomains],
+      matchedKeywords: [...matchedKeywords],
+      matchedSender: [...matchedSender],
     };
   },
 };

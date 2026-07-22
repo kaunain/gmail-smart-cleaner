@@ -160,22 +160,18 @@ function gmailCleanup() {
     AppLogger.log('Starting a new cleanup run.');
   }
 
-  const stats = savedState.stats || {
+  const defaultStats = {
     processedCount: 0,
     archivedCount: 0,
     labeledByLabel: {},
     trashedCount: 0,
     skippedCount: 0,
+    errorsCount: 0,
     startTime: new Date().getTime(),
   };
-
-  const BATCH_SIZE = CONFIG.EXECUTION.BATCH_SIZE;
-
-  // Note: We no longer exclude threads that have script-managed labels.
-  // This is crucial for allowing time-based rules (trash/archive) to be
-  // applied on subsequent runs to threads that were only labeled initially.
-  // The query is constructed to find threads in the inbox OR threads that
-  // already have one of our managed labels, so we can re-process them.
+  const stats = { ...defaultStats, ...(savedState.stats || {}) };
+  stats.labeledByLabel = stats.labeledByLabel || {};
+  stats.errorsCount = stats.errorsCount || 0;
   const managedLabels = (CONFIG.LABELS.REQUIRED_LABELS || [])
     .map((l) => `label:"${l.replace(/"/g, '\\"')}"`)
     .join(' OR ');
@@ -189,6 +185,7 @@ function gmailCleanup() {
 
   try {
     let threads = [];
+    let totalThreadsFound = 0;
 
     // Use a continuous loop that is explicitly broken out of. This is more robust
     // than `do-while` and avoids the unreliable `offset` parameter in GmailApp.search.
@@ -196,6 +193,7 @@ function gmailCleanup() {
     while (true) {
       AppLogger.log('Searching for next batch of threads...');
       threads = GmailApp.search(searchQuery, 0, BATCH_SIZE);
+      totalThreadsFound += threads.length;
 
       if (threads.length === 0) {
         AppLogger.log('No more threads found matching the search query.');
@@ -323,7 +321,8 @@ function gmailCleanup() {
         : 0;
 
     AppLogger.log('====== Final Execution Summary ======');
-    AppLogger.log(`- Threads Found & Loaded: ${threadsFoundAndLoaded}`);
+    AppLogger.log(`- Threads Found: ${totalThreadsFound}`);
+    AppLogger.log(`- Threads Loaded: ${threadsFoundAndLoaded}`);
     AppLogger.log(`- Threads Classified: ${stats.processedCount}`);
     AppLogger.log(`- Threads Matching Rules (new labels applied): ${labeledCount}`);
     if (labeledCount === 0) {
@@ -335,15 +334,30 @@ function gmailCleanup() {
       AppLogger.log('  - WHY: No threads met the criteria for any TRASH_RULES (e.g., wrong label, not old enough), or all that did were protected by safety rules.');
     }
 
+    AppLogger.log(`- Threads Actually Trashed: ${CONFIG.EXECUTION.DRY_RUN ? 0 : stats.trashedCount}`);
+    if (CONFIG.EXECUTION.DRY_RUN && stats.trashedCount > 0) {
+      AppLogger.log('  - WHY: DRY_RUN is enabled, so no threads were actually trashed.');
+    }
+
     AppLogger.log(`- Threads Selected For Archive: ${stats.archivedCount}`);
     if (stats.archivedCount === 0) {
       AppLogger.log('  - WHY: No threads met the criteria for any ARCHIVE_RULES (e.g., wrong label, unread status).');
     }
 
-    AppLogger.log(`- Threads Actually Trashed: ${CONFIG.EXECUTION.DRY_RUN ? 0 : stats.trashedCount}`);
     AppLogger.log(`- Threads Actually Archived: ${CONFIG.EXECUTION.DRY_RUN ? 0 : stats.archivedCount}`);
-    AppLogger.log(`- Threads Skipped (due to safety rules or other): ${stats.skippedCount}`);
-    AppLogger.log(`- Threads Failed (due to errors): ${stats.errorsCount || 0}`);
+    if (CONFIG.EXECUTION.DRY_RUN && stats.archivedCount > 0) {
+      AppLogger.log('  - WHY: DRY_RUN is enabled, so no threads were actually archived.');
+    }
+
+    AppLogger.log(`- Threads Skipped: ${stats.skippedCount}`);
+    if (stats.skippedCount === 0) {
+      AppLogger.log('  - WHY: No threads were skipped by safety checks or rule conflicts.');
+    }
+
+    AppLogger.log(`- Threads Failed: ${stats.errorsCount || 0}`);
+    if ((stats.errorsCount || 0) === 0) {
+      AppLogger.log('  - WHY: No thread processing errors occurred.');
+    }
     AppLogger.log('');
     AppLogger.log('- Detailed Labeling Summary:');
     const labeledEntries = Object.entries(stats.labeledByLabel);

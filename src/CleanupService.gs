@@ -42,6 +42,10 @@ const CleanupService = {
         const newLabels = classification.labels || [];
         const from = classification.from || '';
         const domain = classification.domain || '';
+        const matchedRules = classification.matchedRules || [];
+        const matchedDomains = classification.matchedDomains || [];
+        const matchedKeywords = classification.matchedKeywords || [];
+        const matchedSender = classification.matchedSender || [];
 
         if (newLabels.length > 0) {
           for (const labelName of newLabels) {
@@ -168,16 +172,23 @@ const CleanupService = {
         }
         if (CONFIG.EXECUTION.DEBUG) {
           AppLogger.debug(`[END THREAD] Summary for Thread ID: ${threadId}`);
-          AppLogger.debug(`  - Action Selected: ${finalAction}`);
+          AppLogger.debug(`  - Thread ID: ${threadId}`);
+          AppLogger.debug(`  - Subject: "${subject}"`);
+          AppLogger.debug(`  - From: ${from}`);
+          AppLogger.debug(`  - Age: ${ageInDays.toFixed(2)} days`);
+          AppLogger.debug(`  - Current Labels: [${currentLabels.join(', ')}]`);
+          AppLogger.debug(`  - Gmail Categories: [${gmailCategories.join(', ')}]`);
+          AppLogger.debug(`  - Matched Rules: [${matchedRules.join(' | ')}]`);
+          AppLogger.debug(`  - Matched Domains: [${matchedDomains.join(', ')}]`);
+          AppLogger.debug(`  - Matched Keywords: [${matchedKeywords.join(', ')}]`);
+          AppLogger.debug(`  - Matched Sender: [${matchedSender.join(', ')}]`);
+          AppLogger.debug(`  - Selected Action: ${finalAction}`);
           AppLogger.debug(`  - Reason: ${finalReason}`);
-          AppLogger.debug(`  - Dry Run?: ${CONFIG.EXECUTION.DRY_RUN}`);
-          AppLogger.debug(
-            `  - Label Applied?: ${newLabels.length > 0 ? `Yes, [${newLabels.join(', ')}]` : 'No'}`
-          );
-          AppLogger.debug(`  - Moved To Trash?: ${finalAction === 'Trash'}`);
-          AppLogger.debug(`  - Archived?: ${finalAction === 'Archive'}`);
           AppLogger.debug(`  - Skipped?: ${finalAction === 'Keep'}`);
-          AppLogger.debug(`  - Why skipped?: ${finalAction === 'Keep' ? finalReason : 'N/A'}`);
+          AppLogger.debug(`  - Why?: ${finalAction === 'Keep' ? finalReason : 'N/A'}`);
+          AppLogger.debug(`  - Trash API Called?: ${finalAction === 'Trash' && !CONFIG.EXECUTION.DRY_RUN}`);
+          AppLogger.debug(`  - Archive API Called?: ${finalAction === 'Archive' && !CONFIG.EXECUTION.DRY_RUN}`);
+          AppLogger.debug(`  - Result: ${CONFIG.EXECUTION.DRY_RUN ? `DRY RUN - Would ${finalAction}` : finalAction}`);
           AppLogger.debug(`------------------------------------------------------------------`);
         }
       } catch (error) {
