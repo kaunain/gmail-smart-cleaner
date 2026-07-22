@@ -44,10 +44,10 @@ const CONFIG = {
     /**
      * @type {number}
      * The script will only process threads older than this number of days.
-     * Set to 0 to process all threads in the inbox. A value like 90 or 180
-     * is recommended to avoid processing recent mail and improve performance.
+     * Set to 0 to process all threads. A value like 7 is a good balance
+     * between processing recent items and avoiding active conversations.
      */
-    SEARCH_OLDER_THAN_DAYS: 90,
+    SEARCH_OLDER_THAN_DAYS: 7,
 
     /**
      * @type {number}
@@ -188,7 +188,7 @@ const CONFIG = {
       { label: 'OTP', days: 7 },
       { label: 'Promotions', days: 30 },
       { label: 'Social', days: 90 },
-      { label: 'Junk Mail', days: 3 },
+      { label: 'Junk Mail', days: 0 }, // Trash immediately
     ],
 
     /**
@@ -240,6 +240,12 @@ const CONFIG = {
     // --- High Priority & Security ---
     {
       criteria: { from: 'newsletter@annoying.com' },
+      labels: ['Junk Mail'],
+      isPriority: true,
+    },
+    {
+      // Rule to catch and trash failed GitHub Actions notifications
+      criteria: { subject: 'Run failed: Deploy to Google Apps Script' },
       labels: ['Junk Mail'],
       isPriority: true,
     },
@@ -342,6 +348,18 @@ const CONFIG = {
         ],
       },
       labels: ['Learning'],
+    },
+
+    // --- Forums & Groups ---
+    {
+      criteria: {
+        domain: [
+          'quora.com',
+          'reddit.com',
+          'ycombinator.com', // Hacker News
+        ],
+      },
+      labels: ['Forums'],
     },
 
     // --- OTPs (One-Time Passwords) ---

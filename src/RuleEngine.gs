@@ -50,7 +50,8 @@ const RuleEngine = {
      * @returns {boolean} True if it matches.
      */
     const _matchesCriterion = (criterion, emailValue, matchType) => {
-      if (!criterion) return true; // No criterion means it's a pass for this check.
+      if (!criterion) return true; // A non-existent criterion is always a "pass".
+      if (!emailValue) return false; // A criterion requires a value to match against.
       const values = Array.isArray(criterion) ? criterion : [criterion];
 
       if (matchType === 'includes') {
@@ -58,6 +59,16 @@ const RuleEngine = {
       }
       if (matchType === 'exact') {
         return values.some((v) => String(v).toLowerCase() === emailValue);
+      }
+      // Special handling for domains to match subdomains correctly.
+      // e.g., an email from 'notifications.github.com' should match a rule for 'github.com'.
+      if (matchType === 'domain') {
+        return values.some((v) => {
+          const critDomain = String(v).toLowerCase();
+          return (
+            emailValue === critDomain || emailValue.endsWith(`.${critDomain}`)
+          );
+        });
       }
       return false;
     };
@@ -78,7 +89,7 @@ const RuleEngine = {
       if (
         matched &&
         criteria.domain &&
-        !_matchesCriterion(criteria.domain, domain, 'exact')
+        !_matchesCriterion(criteria.domain, domain, 'domain')
       ) {
         matched = false;
       }

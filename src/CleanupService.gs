@@ -30,13 +30,14 @@ const CleanupService = {
         const domain = classification.domain || '';
 
         if (newLabels.length > 0) {
-          stats.threadsLabeledCount++;
-
           for (const labelName of newLabels) {
             if (!labelMap.has(labelName)) {
               labelMap.set(labelName, []);
             }
             labelMap.get(labelName).push(thread);
+            // Update stats for detailed reporting
+            stats.labeledByLabel[labelName] =
+              (stats.labeledByLabel[labelName] || 0) + 1;
           }
           AppLogger.debug(`  > Applying new labels: [${newLabels.join(', ')}]`);
         }

@@ -10,26 +10,23 @@ const SummaryService = {
    */
   sendSummary(stats) {
     try {
-      if (
-        !CONFIG ||
-        !CONFIG.EXECUTION ||
-        !CONFIG.EXECUTION.SEND_SUMMARY_EMAIL
-      ) {
-        Logger.debug('Summary email is disabled.');
+      const recipient = CONFIG.REPORTING.SUMMARY_EMAIL;
+      if (!recipient) {
+        AppLogger.debug('Summary email is disabled (recipient not set).');
         return;
       }
-
-      const recipient =
-        (CONFIG.NOTIFICATIONS && CONFIG.NOTIFICATIONS.SUMMARY_EMAIL) ||
-        Session.getActiveUser().getEmail();
 
       const subject = `Gmail Smart Cleaner Summary - ${new Date().toLocaleDateString()}`;
       const body = this.buildPlainTextSummary(stats);
 
-      MailApp.sendEmail(recipient, subject, body);
-      Logger.log(`Summary email sent to ${recipient}`);
+      Utils.withRetry(
+        () => MailApp.sendEmail(recipient, subject, body),
+        `send summary email to ${recipient}`
+      );
+      AppLogger.log(`Summary email sent to ${recipient}.`);
     } catch (error) {
-      Logger.error(`Failed to send summary email: ${error.message}`);
+      // Use AppLogger and pass the error object for stack tracing
+      AppLogger.error(`Failed to send summary email: ${error.message}`, error);
     }
   },
 
@@ -43,15 +40,29 @@ const SummaryService = {
     const lines = [];
     lines.push('Gmail Smart Cleaner Summary');
     lines.push('================================');
-    lines.push(`Processed: ${stats.processedCount || 0}`);
-    lines.push(`Labeled: ${stats.threadsLabeledCount || 0}`);
-    lines.push(`Archived: ${stats.archivedCount || 0}`);
-    lines.push(`Trashed: ${stats.trashedCount || 0}`);
-    lines.push(`Skipped: ${stats.skippedCount || 0}`);
-    lines.push(`Errors: ${stats.errorsCount || 0}`);
+    lines.push(`- Threads Processed: ${stats.processedCount || 0}`);
+    lines.push(`- Threads Archived: ${stats.archivedCount || 0}`);
+    lines.push(`- Threads Trashed: ${stats.trashedCount || 0}`);
+    lines.push(`- Threads Skipped: ${stats.skippedCount || 0}`);
+    lines.push(`- Errors: ${stats.errorsCount || 0}`);
     lines.push('');
-    lines.push(`Dry Run: ${CONFIG?.EXECUTION?.DRY_RUN ? 'Yes' : 'No'}`);
-    lines.push(`Runtime: ${Utils.getRuntimeSeconds(stats)} sec`);
+
+    lines.push('Threads Labeled (by Label):');
+    const labeledEntries = Object.entries(stats.labeledByLabel || {});
+    if (
+      labeledEntries.length > 0 &&
+      labeledEntries.some(([, count]) => count > 0)
+    ) {
+      labeledEntries.forEach(([label, count]) => {
+        if (count > 0) lines.push(`  - ${label}: ${count}`);
+      });
+    } else {
+      lines.push('  (None)');
+    }
+    lines.push('');
+
+    lines.push(`Dry Run: ${CONFIG.EXECUTION.DRY_RUN ? 'Yes' : 'No'}`);
+    lines.push(`Runtime: ${stats.totalRuntime || 0} sec`);
     lines.push('');
     lines.push('Generated at:');
     lines.push(new Date().toString());
