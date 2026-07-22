@@ -165,6 +165,7 @@ const RuleEngine = {
       return false;
     };
 
+    let matchedAnyRule = false;
     for (const rule of rules) {
       if (!rule || !rule.labels || rule.labels.length === 0) continue;
 
@@ -173,7 +174,7 @@ const RuleEngine = {
         ', '
       )}] and criteria ${JSON.stringify(criteria)}`;
       if (CONFIG.EXECUTION.DEBUG) {
-        AppLogger.debug(`  [RULE CHECK] Evaluating ${ruleDescription}`);
+        AppLogger.debug(`  [RULE_CHECK] Evaluating ${ruleDescription}`);
       }
 
       let matched = true;
@@ -230,6 +231,7 @@ const RuleEngine = {
       }
 
       if (matched) {
+        matchedAnyRule = true;
         matchedRules.add(ruleDescription);
         if (criteria.from) {
           const values = Array.isArray(criteria.from)
@@ -255,6 +257,16 @@ const RuleEngine = {
           break;
         }
       }
+    }
+
+    if (!matchedAnyRule) {
+      if (CONFIG.EXECUTION.DEBUG) {
+        AppLogger.debug(
+          '  [FALLBACK] No classification rules matched. Applying Delete label.'
+        );
+      }
+      labelsToApply.add('Delete');
+      matchedRules.add('Fallback: Delete because no classification rule matched');
     }
 
     return {
