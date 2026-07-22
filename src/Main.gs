@@ -192,6 +192,7 @@ function gmailCleanup() {
 
     // Use a continuous loop that is explicitly broken out of. This is more robust
     // than `do-while` and avoids the unreliable `offset` parameter in GmailApp.search.
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       AppLogger.log('Searching for next batch of threads...');
       threads = GmailApp.search(searchQuery, 0, BATCH_SIZE);
