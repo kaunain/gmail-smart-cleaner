@@ -303,6 +303,11 @@ function gmailCleanup() {
             `but stats delta is ${processedInBatch}.`
         );
       }
+      const archivedInBatch = stats.archivedCount - statsBefore.archivedCount;
+      const trashedInBatch = stats.trashedCount - statsBefore.trashedCount;
+      const skippedInBatch = stats.skippedCount - statsBefore.skippedCount;
+      const keptInBatch =
+        batchThreadCount - archivedInBatch - trashedInBatch - skippedInBatch;
 
       let totalLabeledInBatch = 0;
       for (const label in stats.labeledByLabel) {
@@ -313,10 +318,10 @@ function gmailCleanup() {
         }
       }
 
-      const archivedInBatch = stats.archivedCount - statsBefore.archivedCount;
-      const trashedInBatch = stats.trashedCount - statsBefore.trashedCount;
-      const skippedInBatch = stats.skippedCount - statsBefore.skippedCount;
       let batchLog = `  > Batch actions: Processed: ${processedInBatch}, Archived: ${archivedInBatch}, Trashed: ${trashedInBatch}, Skipped: ${skippedInBatch}`;
+      if (keptInBatch > 0) {
+        batchLog += `, Kept: ${keptInBatch}`;
+      }
       if (totalLabeledInBatch > 0) {
         batchLog += `, Labeled: ${totalLabeledInBatch}`;
       }
