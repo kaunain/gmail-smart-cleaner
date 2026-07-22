@@ -316,25 +316,47 @@ function gmailCleanup() {
     AppLogger.log('====== Gmail Cleanup Complete ======');
 
     const totalRuntime = Utils.getScriptRuntime();
-    AppLogger.log('====== Final Execution Summary ======');
-    AppLogger.log(`- Total Threads Processed: ${stats.processedCount}`);
+    const threadsFoundAndLoaded = stats.processedCount;
+    const labeledCount =
+      Object.keys(stats.labeledByLabel).length > 0
+        ? Object.values(stats.labeledByLabel).reduce((a, b) => a + b, 0)
+        : 0;
 
-    AppLogger.log('- Threads Labeled (by Label):');
+    AppLogger.log('====== Final Execution Summary ======');
+    AppLogger.log(`- Threads Found & Loaded: ${threadsFoundAndLoaded}`);
+    AppLogger.log(`- Threads Classified: ${stats.processedCount}`);
+    AppLogger.log(`- Threads Matching Rules (new labels applied): ${labeledCount}`);
+    if (labeledCount === 0) {
+      AppLogger.log('  - WHY: No threads matched any CLASSIFICATION_RULES, or all matched threads already had the required labels.');
+    }
+
+    AppLogger.log(`- Threads Selected For Trash: ${stats.trashedCount}`);
+    if (stats.trashedCount === 0) {
+      AppLogger.log('  - WHY: No threads met the criteria for any TRASH_RULES (e.g., wrong label, not old enough), or all that did were protected by safety rules.');
+    }
+
+    AppLogger.log(`- Threads Selected For Archive: ${stats.archivedCount}`);
+    if (stats.archivedCount === 0) {
+      AppLogger.log('  - WHY: No threads met the criteria for any ARCHIVE_RULES (e.g., wrong label, unread status).');
+    }
+
+    AppLogger.log(`- Threads Actually Trashed: ${CONFIG.EXECUTION.DRY_RUN ? 0 : stats.trashedCount}`);
+    AppLogger.log(`- Threads Actually Archived: ${CONFIG.EXECUTION.DRY_RUN ? 0 : stats.archivedCount}`);
+    AppLogger.log(`- Threads Skipped (due to safety rules or other): ${stats.skippedCount}`);
+    AppLogger.log(`- Threads Failed (due to errors): ${stats.errorsCount || 0}`);
+    AppLogger.log('');
+    AppLogger.log('- Detailed Labeling Summary:');
     const labeledEntries = Object.entries(stats.labeledByLabel);
     if (labeledEntries.length > 0) {
       labeledEntries.forEach(([label, count]) => {
         if (count > 0) AppLogger.log(`    - ${label}: ${count}`);
       });
     } else {
-      AppLogger.log('    (None)');
+      AppLogger.log('    (No new labels were applied)');
     }
-
-    AppLogger.log(`- Threads Archived: ${stats.archivedCount}`);
-    AppLogger.log(`- Threads Trashed: ${stats.trashedCount}`);
-    AppLogger.log(
-      `- Threads Skipped (due to safety rules): ${stats.skippedCount}`
-    );
+    AppLogger.log('');
     AppLogger.log(`- Total Runtime: ${totalRuntime} seconds.`);
+    AppLogger.log(`- Dry Run Mode: ${CONFIG.EXECUTION.DRY_RUN}`);
     AppLogger.log('=====================================');
 
     // Perform housekeeping by removing any unused labels

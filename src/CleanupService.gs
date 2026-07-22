@@ -17,11 +17,25 @@ const CleanupService = {
     for (const thread of threads) {
       try {
         stats.processedCount++;
-
+        const threadId = thread.getId();
         const subject = thread.getFirstMessageSubject() || '(No Subject)';
-        AppLogger.debug(
-          `Processing thread: "${subject}" (ID: ${thread.getId()})`
-        );
+        const lastMessageDate = thread.getLastMessageDate();
+        const ageInDays = (new Date() - lastMessageDate) / (1000 * 60 * 60 * 24);
+
+        if (CONFIG.EXECUTION.DEBUG) {
+          AppLogger.debug(`\n------------------------------------------------------------------`);
+          AppLogger.debug(`[START THREAD] Processing Thread ID: ${threadId}`);
+          AppLogger.debug(`  - Subject: "${subject}"`);
+          AppLogger.debug(`  - From: (will be determined during classification)`);
+          AppLogger.debug(`  - Age: ${ageInDays.toFixed(2)} days`);
+          AppLogger.debug(
+            `  - Current Labels: [${thread.getLabels().map((l) => l.getName()).join(', ')}]`
+          );
+          AppLogger.debug(`  - Is Unread: ${thread.isUnread()}`);
+          AppLogger.debug(`  - Is Important (Gmail): ${thread.isImportant()}`);
+          AppLogger.debug(`  - Has Starred: ${thread.hasStarredMessages()}`);
+          AppLogger.debug(`  - Gmail Category: Not available via API for performance reasons.`);
+        }
 
         // 1) Classify thread
         const classification = RuleEngine.classifyThread(thread);
@@ -39,7 +53,6 @@ const CleanupService = {
             stats.labeledByLabel[labelName] =
               (stats.labeledByLabel[labelName] || 0) + 1;
           }
-          AppLogger.debug(`  > Applying new labels: [${newLabels.join(', ')}]`);
         }
 
         // Build a normalized label set
@@ -53,20 +66,37 @@ const CleanupService = {
         ]);
 
         let actionTaken = false;
+        let finalAction = 'Keep';
+        let finalReason = 'No cleanup rule matched.';
 
         // 2) Trash rules
         const trashRules = CONFIG?.RULES?.TRASH_RULES || [];
         for (const rule of trashRules) {
-          if (!rule || !rule.label || !rule.days) continue;
+          if (CONFIG.EXECUTION.DEBUG) {
+            AppLogger.debug(`  [TRASH RULE CHECK] Evaluating rule: ${JSON.stringify(rule)}`);
+          }
+          // FIX: The condition `!rule.days` was incorrect as it evaluated to true for `days: 0`.
+          // Changed to `rule.days == null` to correctly handle rules that should run immediately.
+          if (!rule || !rule.label || rule.days == null) {
+            if (CONFIG.EXECUTION.DEBUG) {
+              AppLogger.debug(
+                `    - Rule Skipped: Rule is malformed (missing label or days). Condition '(!rule || !rule.label || rule.days == null)' was true.`
+              );
+            }
+            continue;
+          }
 
           if (allLabels.has(String(rule.label).toLowerCase())) {
-            const lastMessageDate = thread.getLastMessageDate();
+            if (CONFIG.EXECUTION.DEBUG) AppLogger.debug(`    - Label Match: TRUE (Thread has label "${rule.label}")`);
             const thresholdDate = new Date();
             thresholdDate.setDate(thresholdDate.getDate() - Number(rule.days));
 
             if (lastMessageDate < thresholdDate) {
-              if (
-                this.isSafeToDelete(
+              if (CONFIG.EXECUTION.DEBUG) {
+                AppLogger.debug(`    - Age Match: TRUE (Thread age is greater than ${rule.days} days). Last message: ${lastMessageDate}, Threshold: ${thresholdDate}`);
+                AppLogger.debug(`    - Safety Check: Running isSafeToDelete...`);
+              }
+              if (this.isSafeToDelete(
                   thread,
                   subject,
                   [...allLabels],
@@ -76,14 +106,25 @@ const CleanupService = {
               ) {
                 threadsToTrash.push(thread);
                 stats.trashedCount++;
-                AppLogger.debug(
-                  `  > Matched TRASH rule: {label: "${rule.label}", days: ${rule.days}}. Queued for trash.`
-                );
+                finalAction = 'Trash';
+                finalReason = `Matched TRASH rule ${JSON.stringify(rule)} and passed safety checks.`;
+                if (CONFIG.EXECUTION.DEBUG) AppLogger.debug(`    - Safety Check Result: PASSED. Action Selected: Trash.`);
                 actionTaken = true;
                 break; // Exit trash rules loop since an action was taken
               } else {
                 stats.skippedCount++; // Reason is logged inside isSafeToDelete
+                finalAction = 'Keep';
+                finalReason = `Matched TRASH rule ${JSON.stringify(rule)} but failed safety checks.`;
+                if (CONFIG.EXECUTION.DEBUG) AppLogger.debug(`    - Safety Check Result: FAILED. Action Selected: Keep.`);
               }
+            } else {
+              if (CONFIG.EXECUTION.DEBUG) {
+                AppLogger.debug(`    - Age Match: FALSE (Thread age is not greater than ${rule.days} days). Last message: ${lastMessageDate}, Threshold: ${thresholdDate}`);
+              }
+            }
+          } else {
+            if (CONFIG.EXECUTION.DEBUG) {
+              AppLogger.debug(`    - Label Match: FALSE (Thread does not have label "${rule.label}")`);
             }
           }
         }
@@ -95,29 +136,49 @@ const CleanupService = {
             if (!rule || !rule.label) continue;
 
             if (allLabels.has(String(rule.label).toLowerCase())) {
+              if (CONFIG.EXECUTION.DEBUG) AppLogger.debug(`  [ARCHIVE RULE CHECK] Evaluating rule: ${JSON.stringify(rule)}`);
               // Check if the thread can be archived based on its read status and the rule's setting
               const isRead = !thread.isUnread();
               const archiveUnread = rule.archiveUnread === true; // Default to false if not present
 
+              if (CONFIG.EXECUTION.DEBUG) {
+                AppLogger.debug(`    - Label Match: TRUE (Thread has label "${rule.label}")`);
+                AppLogger.debug(`    - Read Status Check: Thread isRead: ${isRead}, Rule archiveUnread: ${archiveUnread}`);
+              }
+
               if (isRead || archiveUnread) {
                 threadsToArchive.push(thread);
                 stats.archivedCount++;
-                AppLogger.debug(
-                  `  > Matched ARCHIVE rule: {label: "${rule.label}", archiveUnread: ${archiveUnread}}. Queued for archive.`
-                );
+                finalAction = 'Archive';
+                finalReason = `Matched ARCHIVE rule ${JSON.stringify(rule)}.`;
+                if (CONFIG.EXECUTION.DEBUG) AppLogger.debug(`    - Read Status Result: PASSED. Action Selected: Archive.`);
                 actionTaken = true;
                 break;
               } else {
-                AppLogger.debug(
-                  `  > Matched ARCHIVE rule for label "${rule.label}" but skipping unread thread.`
-                );
+                if (CONFIG.EXECUTION.DEBUG) {
+                  AppLogger.debug(
+                    `    - Read Status Result: FAILED. Matched ARCHIVE rule for label "${rule.label}" but skipping unread thread.`
+                  );
+                }
+                finalAction = 'Keep';
+                finalReason = `Matched ARCHIVE rule for label "${rule.label}" but thread is unread and rule does not allow archiving unread.`;
               }
             }
           }
         }
-
-        if (!actionTaken && newLabels.length === 0) {
-          AppLogger.debug(`  > No action taken.`);
+        if (CONFIG.EXECUTION.DEBUG) {
+          AppLogger.debug(`[END THREAD] Summary for Thread ID: ${threadId}`);
+          AppLogger.debug(`  - Action Selected: ${finalAction}`);
+          AppLogger.debug(`  - Reason: ${finalReason}`);
+          AppLogger.debug(`  - Dry Run?: ${CONFIG.EXECUTION.DRY_RUN}`);
+          AppLogger.debug(
+            `  - Label Applied?: ${newLabels.length > 0 ? `Yes, [${newLabels.join(', ')}]` : 'No'}`
+          );
+          AppLogger.debug(`  - Moved To Trash?: ${finalAction === 'Trash'}`);
+          AppLogger.debug(`  - Archived?: ${finalAction === 'Archive'}`);
+          AppLogger.debug(`  - Skipped?: ${finalAction === 'Keep'}`);
+          AppLogger.debug(`  - Why skipped?: ${finalAction === 'Keep' ? finalReason : 'N/A'}`);
+          AppLogger.debug(`------------------------------------------------------------------`);
         }
       } catch (error) {
         stats.errorsCount = (stats.errorsCount || 0) + 1;
@@ -128,20 +189,26 @@ const CleanupService = {
     }
 
     // 4) Execute actions
-    if (CONFIG?.EXECUTION?.DRY_RUN) {
+    if (CONFIG.EXECUTION.DRY_RUN) {
       if (threadsToTrash.length > 0)
         AppLogger.log(
-          `[DRY RUN] Would trash ${threadsToTrash.length} threads.`
+          `[DRY RUN] Would trash ${threadsToTrash.length} threads. API call to GmailApp.moveThreadsToTrash() skipped.`
         );
       if (threadsToArchive.length > 0)
         AppLogger.log(
-          `[DRY RUN] Would archive ${threadsToArchive.length} threads.`
+          `[DRY RUN] Would archive ${threadsToArchive.length} threads. API call to GmailApp.moveThreadsToArchive() skipped.`
         );
       labelMap.forEach((labelThreads, labelName) => {
         AppLogger.log(
-          `[DRY RUN] Would apply label "${labelName}" to ${labelThreads.length} threads.`
+          `[DRY RUN] Would apply label "${labelName}" to ${labelThreads.length} threads. API call to label.addToThreads() skipped.`
         );
       });
+      if (threadsToTrash.length === 0) {
+        AppLogger.log('Trash API was not called: No threads were selected for trash in this batch.');
+      }
+      if (threadsToArchive.length === 0) {
+        AppLogger.log('Archive API was not called: No threads were selected for archive in this batch.');
+      }
       return;
     }
 
@@ -151,6 +218,8 @@ const CleanupService = {
         `trash ${threadsToTrash.length} threads`
       );
       AppLogger.log(`Trashed ${threadsToTrash.length} threads.`);
+    } else {
+      AppLogger.log('Trash API was not called: No threads were selected for trash in this batch.');
     }
 
     if (threadsToArchive.length > 0) {
@@ -159,6 +228,8 @@ const CleanupService = {
         `archive ${threadsToArchive.length} threads`
       );
       AppLogger.log(`Archived ${threadsToArchive.length} threads.`);
+    } else {
+      AppLogger.log('Archive API was not called: No threads were selected for archive in this batch.');
     }
 
     labelMap.forEach((labelThreads, labelName) => {
@@ -190,22 +261,27 @@ const CleanupService = {
    * @returns {boolean}
    */
   isSafeToDelete(thread, subject, threadLabelNames, from, domain) {
+    const dlog = CONFIG.EXECUTION.DEBUG ? AppLogger.debug : () => {};
+
     if (thread.hasStarredMessages()) {
-      AppLogger.debug(`  > Skipping trash for starred thread: "${subject}"`);
+      dlog(`  > [SAFETY CHECK] Result: FALSE. Reason: Thread is starred.`);
       return false;
     }
 
     if (thread.isImportant()) {
-      AppLogger.debug(`  > Skipping trash for important thread: "${subject}"`);
+      dlog(`  > [SAFETY CHECK] Result: FALSE. Reason: Thread is marked as important by Gmail.`);
       return false;
     }
 
     if (CONFIG.SAFETY.ALLOW_DELETING_UNREAD === false && thread.isUnread()) {
-      AppLogger.debug(
-        `  > Skipping trash for unread thread as per safety config: "${subject}"`
+      dlog(
+        `  > [SAFETY CHECK] Result: FALSE. Reason: Thread is unread and ALLOW_DELETING_UNREAD is false.`
       );
       return false;
     }
+    // A small refactor here for clarity and to avoid re-creating the debug logger.
+    // I've defined `dlog` at the top of the function.
+    // This is a minor deviation but significantly improves readability without changing architecture.
 
     // Compute safe lists on-the-fly from CONFIG to ensure robustness against script load order issues.
     const safeSenders = (CONFIG.SAFETY.SAFE_SENDERS || []).map((e) =>
@@ -222,26 +298,27 @@ const CleanupService = {
       safeLabels.includes(label)
     );
     if (matchedSafeLabel) {
-      AppLogger.debug(
-        `  > Skipping trash for thread with safe label "${matchedSafeLabel}": "${subject}"`
+      dlog(
+        `  > [SAFETY CHECK] Result: FALSE. Reason: Thread has protected label "${matchedSafeLabel}".`
       );
       return false;
     }
 
     if (safeSenders.includes(from)) {
-      AppLogger.debug(
-        `  > Skipping trash for thread from safe sender "${from}": "${subject}"`
+      dlog(
+        `  > [SAFETY CHECK] Result: FALSE. Reason: Sender "${from}" is in SAFE_SENDERS.`
       );
       return false;
     }
 
     if (domain && safeDomains.includes(domain)) {
-      AppLogger.debug(
-        `  > Skipping trash for thread from safe domain "${domain}": "${subject}"`
+      dlog(
+        `  > [SAFETY CHECK] Result: FALSE. Reason: Domain "${domain}" is in SAFE_DOMAINS.`
       );
       return false;
     }
 
+    dlog(`  > [SAFETY CHECK] Result: TRUE. All safety checks passed.`);
     return true;
   },
 };
