@@ -165,6 +165,7 @@ All settings are centralized in `src/Config.gs`.
 - `BATCH_SIZE`: Number of emails to process at once.
 - `TRASH_RULES`: Define which labels lead to deletion and after how many days.
 - `CLASSIFICATION_RULES`: The core logic for labeling emails based on sender, subject, and more.
+- If a thread matches no configured classification rule, the engine now applies the explicit `Delete` label by default, so unmatched non-important threads are treated as delete candidates.
 - `SAFE_SENDERS` / `SAFE_DOMAINS`: Whitelist important senders and domains to protect them from deletion.
 
 ---
