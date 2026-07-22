@@ -294,8 +294,15 @@ function gmailCleanup() {
 
       CleanupService.processThreads(threadsToProcess, stats);
 
+      const batchThreadCount = threadsToProcess.length;
       const processedInBatch =
         stats.processedCount - statsBefore.processedCount;
+      if (processedInBatch !== batchThreadCount) {
+        AppLogger.warn(
+          `Batch processed count mismatch: expected ${batchThreadCount}, ` +
+            `but stats delta is ${processedInBatch}.`
+        );
+      }
 
       let totalLabeledInBatch = 0;
       for (const label in stats.labeledByLabel) {
