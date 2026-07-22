@@ -4,12 +4,20 @@
  */
 
 const AppLogger = {
+  _write(method, message) {
+    if (typeof console !== 'undefined' && console && typeof console[method] === 'function') {
+      console[method](message);
+    } else if (typeof Logger !== 'undefined' && Logger && typeof Logger.log === 'function') {
+      Logger.log(message);
+    }
+  },
+
   /**
    * Logs a standard informational message.
    * @param {string} message The message to log.
    */
   log(message) {
-    console.info(`[INFO] ${message}`);
+    this._write('info', `[INFO] ${message}`);
   },
 
   /**
@@ -17,8 +25,11 @@ const AppLogger = {
    * @param {string} message The message to log.
    */
   debug(message) {
-    if (CONFIG.EXECUTION.DEBUG) {
+    if (!CONFIG.EXECUTION.DEBUG) return;
+    if (typeof console !== 'undefined' && console && typeof console.debug === 'function') {
       console.debug(`[DEBUG] ${message}`);
+    } else {
+      this._write('log', `[DEBUG] ${message}`);
     }
   },
 
@@ -27,7 +38,7 @@ const AppLogger = {
    * @param {string} message The message to log.
    */
   warn(message) {
-    console.warn(`[WARN] ${message}`);
+    this._write('warn', `[WARN] ${message}`);
   },
 
   /**
@@ -36,10 +47,10 @@ const AppLogger = {
    * @param {Error|object} [error] Optional error object to log its stack for more context.
    */
   error(message, error) {
-    console.error(`[ERROR] ${message}`);
+    this._write('error', `[ERROR] ${message}`);
 
     if (error && error.stack) {
-      console.error(error.stack);
+      this._write('error', error.stack);
     }
   },
 };
