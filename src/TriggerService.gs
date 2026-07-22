@@ -10,14 +10,14 @@ const TriggerService = {
   deleteAllTriggers() {
     const triggers = ScriptApp.getProjectTriggers();
     if (triggers.length > 0) {
-      Logger.log(`Deleting ${triggers.length} existing trigger(s)...`);
+      AppLogger.log(`Deleting ${triggers.length} existing trigger(s)...`);
       triggers.forEach((trigger) => {
         // When a user runs installTriggers(), we assume a full reset of the
         // schedule. Deleting all triggers created by this script, including
         // any temporary continuation triggers, is the desired behavior.
         ScriptApp.deleteTrigger(trigger);
       });
-      Logger.log('All project triggers have been deleted.');
+      AppLogger.log('All project triggers have been deleted.');
     }
   },
 
