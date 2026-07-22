@@ -551,12 +551,6 @@ function _cleanupEmptyLabels() {
   const userLabels = GmailApp.getUserLabels();
   userLabels.forEach((label) => {
     const labelName = label.getName();
-    const labelNameLower = labelName.toLowerCase();
-
-    if (protectedLabels.has(labelNameLower)) {
-      AppLogger.debug(`Skipping protected label: "${labelName}"`);
-      return;
-    }
 
     try {
       const escapedLabelName = labelName.replace(/"/g, '\\"');
@@ -564,7 +558,7 @@ function _cleanupEmptyLabels() {
       const liveThreads = GmailApp.search(searchQuery, 0, 1).length;
       if (liveThreads === 0) {
         AppLogger.log(
-          `Label "${labelName}" is empty and not protected. Deleting it.`
+          `Label "${labelName}" is empty. Deleting it.`
         );
         label.deleteLabel();
         removedCount++;
