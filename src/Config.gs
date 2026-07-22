@@ -169,6 +169,7 @@ const CONFIG = {
       'Priority', // A generic priority label
       'Promotions', // For promotion-type emails
       'Forums', // For forum/group discussions
+      'Delete', // Explicit label for email threads that should be deleted
       'Large Attachments',
       'Junk Mail', // For specific senders you want to trash
     ],
@@ -186,13 +187,14 @@ const CONFIG = {
      */
     TRASH_RULES: [
       { label: 'OTP', days: 7 },
-      { label: 'Promotions', days: 15 },
-      { label: 'Newsletters', days: 14 },
-      { label: 'Social', days: 30 },
-      { label: 'Shopping', days: 30 },
-      { label: 'Forums', days: 30 },
-      { label: 'Travel', days: 60 },
+      { label: 'Delete', days: 0 }, // Explicit delete label, trash immediately
       { label: 'Junk Mail', days: 0 }, // Trash immediately
+      { label: 'Promotions', days: 7 },
+      { label: 'Newsletters', days: 7 },
+      { label: 'Social', days: 14 },
+      { label: 'Shopping', days: 21 },
+      { label: 'Forums', days: 21 },
+      { label: 'Travel', days: 30 },
     ],
 
     /**
@@ -391,6 +393,45 @@ const CONFIG = {
     {
       criteria: { body: 'is your one-time password' },
       labels: ['OTP'],
+      isPriority: true,
+    },
+
+    // --- Delete-specific rules (strong unwanted classification) ---
+    {
+      criteria: {
+        subject: [
+          'unsubscribe',
+          'sale',
+          'offer',
+          'deal',
+          'discount',
+          'promo',
+          'promotion',
+          'limited time offer',
+          'buy now',
+          'free shipping',
+          'exclusive offer',
+        ],
+      },
+      labels: ['Promotions', 'Delete'],
+      isPriority: true,
+    },
+    {
+      criteria: {
+        body: [
+          'unsubscribe',
+          'manage preferences',
+          'view in browser',
+          'special offer',
+          'limited time offer',
+          'free shipping',
+          'exclusive offer',
+          'save up to',
+          'click here',
+          'unsubscribe from',
+        ],
+      },
+      labels: ['Delete'],
       isPriority: true,
     },
 
