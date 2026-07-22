@@ -569,14 +569,17 @@ function _cleanupEmptyLabels() {
     }
 
     try {
-      // Use GmailApp.search as it correctly ignores trashed threads, unlike label.getThreads().
-      // This is the reliable way to check if a label is truly not in use.
-      if (GmailApp.search(`label:"${labelName}"`, 0, 1).length === 0) {
+      const threadCount = label.getThreads(0, 1).length;
+      if (threadCount === 0) {
         AppLogger.log(
           `Label "${labelName}" is empty and not protected. Deleting it.`
         );
         label.deleteLabel();
         removedCount++;
+      } else if (CONFIG.EXECUTION.DEBUG) {
+        AppLogger.debug(
+          `Skipping label "${labelName}" because it still has ${threadCount} thread(s).`
+        );
       }
     } catch (e) {
       AppLogger.warn(
