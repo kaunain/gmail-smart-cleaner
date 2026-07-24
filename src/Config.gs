@@ -109,7 +109,9 @@ const CONFIG = {
      * will NEVER be moved to trash.
      * Example: ['boss@example.com', 'important-client@example.com']
      */
-    SAFE_SENDERS: [],
+    SAFE_SENDERS: [
+      // Add your own important email addresses here.
+    ],
 
     /**
      * @type {string[]}
@@ -117,7 +119,22 @@ const CONFIG = {
      * moved to trash.
      * Example: ['my-company.com', 'my-bank.com']
      */
-    SAFE_DOMAINS: [],
+    SAFE_DOMAINS: [
+      'google.com',
+      'github.com',
+      'linkedin.com',
+      'amazon.in',
+      'amazon.com',
+      'hdfcbank.com',
+      'icicibank.com',
+      'axisbank.com',
+      'sbi.co.in',
+      'groww.in',
+      'zerodha.com',
+      'incometax.gov.in',
+      'uidai.gov.in',
+      'infosys.com',
+    ],
 
     /**
      * @type {string[]}
@@ -141,7 +158,7 @@ const CONFIG = {
      * By default this is false to prevent accidental deletion of new, unread mail.
      * USE WITH CAUTION.
      */
-    ALLOW_DELETING_UNREAD: true,
+    ALLOW_DELETING_UNREAD: false,
   },
 
   // ==========================================================================
@@ -187,14 +204,14 @@ const CONFIG = {
      */
     TRASH_RULES: [
       { label: 'OTP', days: 7 },
-      { label: 'Delete', days: 0 }, // Explicit delete label, trash immediately
-      { label: 'Junk Mail', days: 0 }, // Trash immediately
+      { label: 'Delete', days: 3 },
+      { label: 'Junk Mail', days: 3 },
       { label: 'Promotions', days: 7 },
       { label: 'Newsletters', days: 7 },
-      { label: 'Social', days: 14 },
-      { label: 'Shopping', days: 21 },
-      { label: 'Forums', days: 21 },
-      { label: 'Travel', days: 30 },
+      { label: 'Social', days: 30 },
+      { label: 'Shopping', days: 60 },
+      { label: 'Forums', days: 30 },
+      { label: 'Travel', days: 60 },
     ],
 
     /**
@@ -396,84 +413,35 @@ const CONFIG = {
       isPriority: true,
     },
 
-    // --- Delete-specific rules (strong unwanted classification) ---
+    // --- Promotions & Unwanted Mail (Safer Rules) ---
+    // This rule applies both 'Promotions' and 'Delete' labels to emails
+    // with promotional subjects, causing them to be deleted immediately.
     {
       criteria: {
         subject: [
-          'unsubscribe',
           'sale',
           'offer',
           'deal',
           'discount',
           'promo',
           'promotion',
-          'limited time offer',
-          'buy now',
-          'free shipping',
-          'exclusive offer',
+          'exclusive',
+          'save up to',
         ],
       },
       labels: ['Promotions', 'Delete'],
-      isPriority: true,
-    },
-    {
-      criteria: {
-        body: [
-          'unsubscribe',
-          'manage preferences',
-          'view in browser',
-          'special offer',
-          'limited time offer',
-          'free shipping',
-          'exclusive offer',
-          'save up to',
-          'click here',
-          'unsubscribe from',
-        ],
-      },
-      labels: ['Delete'],
       isPriority: true,
     },
 
     // --- Generic Fallbacks (lower priority) ---
     // This rule acts as a catch-all for common email types.
     { criteria: { subject: 'newsletter' }, labels: ['Newsletters'] },
-    {
-      criteria: {
-        subject: [
-          'sale',
-          'offer',
-          'deal',
-          'discount',
-          'promo',
-          'promotion',
-          'limited time offer',
-          'buy now',
-          'free shipping',
-          'exclusive offer',
-        ],
-      },
-      labels: ['Promotions'],
-    },
-    {
-      criteria: {
-        body: [
-          'unsubscribe',
-          'manage preferences',
-          'view in browser',
-          'special offer',
-          'limited time offer',
-          'free shipping',
-          'exclusive offer',
-          'save up to',
-        ],
-      },
-      labels: ['Promotions'],
-    },
 
     // This is a powerful fallback rule. Most marketing and promotional emails
     // are legally required to have an "unsubscribe" link.
     // This will catch many emails that your other rules might have missed.
+    // It only applies the 'Promotions' label, which is then handled by the
+    // TRASH_RULES after a few days.
     { criteria: { body: 'unsubscribe' }, labels: ['Promotions'] },
   ],
 };

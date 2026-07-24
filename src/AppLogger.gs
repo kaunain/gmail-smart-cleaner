@@ -5,9 +5,17 @@
 
 const AppLogger = {
   _write(method, message) {
-    if (typeof console !== 'undefined' && console && typeof console[method] === 'function') {
+    if (
+      typeof console !== 'undefined' &&
+      console &&
+      typeof console[method] === 'function'
+    ) {
       console[method](message);
-    } else if (typeof Logger !== 'undefined' && Logger && typeof Logger.log === 'function') {
+    } else if (
+      typeof Logger !== 'undefined' &&
+      Logger &&
+      typeof Logger.log === 'function'
+    ) {
       Logger.log(message);
     }
   },
@@ -26,9 +34,17 @@ const AppLogger = {
    */
   debug(message) {
     if (!CONFIG.EXECUTION.DEBUG) return;
-    if (typeof console !== 'undefined' && console && typeof console.debug === 'function') {
+    if (
+      typeof console !== 'undefined' &&
+      console &&
+      typeof console.debug === 'function'
+    ) {
       console.debug(`[DEBUG] ${message}`);
-    } else if (typeof console !== 'undefined' && console && typeof console.log === 'function') {
+    } else if (
+      typeof console !== 'undefined' &&
+      console &&
+      typeof console.log === 'function'
+    ) {
       console.log(message);
     } else {
       this._write('log', message);

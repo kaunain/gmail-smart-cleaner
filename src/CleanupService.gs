@@ -331,7 +331,9 @@ const CleanupService = {
         );
       }
       if (!label) {
-        AppLogger.warn(`Label "${labelName}" could not be created. Skipping label application.`);
+        AppLogger.warn(
+          `Label "${labelName}" could not be created. Skipping label application.`
+        );
         return;
       }
 

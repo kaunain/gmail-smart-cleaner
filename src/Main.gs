@@ -217,11 +217,11 @@ function gmailCleanup() {
 
       // Ensure we process the oldest threads first within each fetched batch.
       // GmailApp.search does not guarantee oldest-first ordering, so sort here.
-      threads.sort((a, b) =>
-        a.getLastMessageDate() - b.getLastMessageDate()
-      );
+      threads.sort((a, b) => a.getLastMessageDate() - b.getLastMessageDate());
       if (CONFIG.EXECUTION.DEBUG) {
-        AppLogger.debug('Sorted fetched threads from oldest to newest by last message date.');
+        AppLogger.debug(
+          'Sorted fetched threads from oldest to newest by last message date.'
+        );
       }
 
       // --- Pre-processing for Important Emails ---
@@ -569,9 +569,7 @@ function _cleanupEmptyLabels() {
       const searchQuery = `label:"${escapedLabelName}" -in:trash -in:spam`;
       const liveThreads = GmailApp.search(searchQuery, 0, 1).length;
       if (liveThreads === 0) {
-        AppLogger.log(
-          `Label "${labelName}" is empty. Deleting it.`
-        );
+        AppLogger.log(`Label "${labelName}" is empty. Deleting it.`);
         label.deleteLabel();
         removedCount++;
       } else if (CONFIG.EXECUTION.DEBUG) {

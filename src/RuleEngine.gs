@@ -266,7 +266,9 @@ const RuleEngine = {
         );
       }
       labelsToApply.add('Delete');
-      matchedRules.add('Fallback: Delete because no classification rule matched');
+      matchedRules.add(
+        'Fallback: Delete because no classification rule matched'
+      );
     }
 
     return {
