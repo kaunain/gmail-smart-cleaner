@@ -413,9 +413,7 @@ const CONFIG = {
       isPriority: true,
     },
 
-    // --- Promotions & Unwanted Mail (Safer Rules) ---
-    // This rule applies both 'Promotions' and 'Delete' labels to emails
-    // with promotional subjects, causing them to be deleted immediately.
+    // --- Delete-specific rules (strong unwanted classification) ---
     {
       criteria: {
         subject: [
@@ -425,17 +423,68 @@ const CONFIG = {
           'discount',
           'promo',
           'promotion',
-          'exclusive',
-          'save up to',
+          'limited time offer',
+          'buy now',
+          'free shipping',
+          'exclusive offer',
         ],
       },
       labels: ['Promotions', 'Delete'],
+      isPriority: true,
+    },
+    {
+      criteria: {
+        body: [
+          'manage preferences',
+          'view in browser',
+          'special offer',
+          'limited time offer',
+          'free shipping',
+          'exclusive offer',
+          'save up to',
+          'click here',
+          'unsubscribe from',
+        ],
+      },
+      labels: ['Delete'],
       isPriority: true,
     },
 
     // --- Generic Fallbacks (lower priority) ---
     // This rule acts as a catch-all for common email types.
     { criteria: { subject: 'newsletter' }, labels: ['Newsletters'] },
+    {
+      criteria: {
+        subject: [
+          'sale',
+          'offer',
+          'deal',
+          'discount',
+          'promo',
+          'promotion',
+          'limited time offer',
+          'buy now',
+          'free shipping',
+          'exclusive offer',
+        ],
+      },
+      labels: ['Promotions'],
+    },
+    {
+      criteria: {
+        body: [
+          'unsubscribe',
+          'manage preferences',
+          'view in browser',
+          'special offer',
+          'limited time offer',
+          'free shipping',
+          'exclusive offer',
+          'save up to',
+        ],
+      },
+      labels: ['Promotions'],
+    },
 
     // This is a powerful fallback rule. Most marketing and promotional emails
     // are legally required to have an "unsubscribe" link.
