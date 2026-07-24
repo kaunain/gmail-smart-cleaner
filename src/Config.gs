@@ -22,7 +22,7 @@ const CONFIG = {
      * @type {boolean}
      * If true, enables verbose logging for debugging purposes.
      */
-    DEBUG: true,
+    DEBUG: false,
 
     /**
      * @type {number}
@@ -55,7 +55,7 @@ const CONFIG = {
      * The script will stop after reaching this limit.
      * Set to 0 to process all matching threads.
      */
-    MAX_THREADS_TO_PROCESS: 0,
+    MAX_THREADS_TO_PROCESS: 1000,
 
     /**
      * @type {number}
@@ -120,6 +120,8 @@ const CONFIG = {
      * Example: ['my-company.com', 'my-bank.com']
      */
     SAFE_DOMAINS: [
+      'fincz.com',
+      'theislah.com',
       'google.com',
       'github.com',
       'linkedin.com',
