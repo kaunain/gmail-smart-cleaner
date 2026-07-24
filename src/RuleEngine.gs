@@ -1,284 +1,112 @@
 /**
- * @fileoverview Service responsible for classifying Gmail threads.
+ * @fileoverview The RuleEngine for classifying Gmail threads based on configured rules.
  */
 
-const RuleEngine = {
+const RuleEngine = (function () {
   /**
-   * Classifies a Gmail thread into labels based on CONFIG.CLASSIFICATION_RULES
-   * or CONFIG.RULES.CLASSIFICATION_RULES.
-   *
-   * @param {GoogleAppsScript.Gmail.GmailThread} thread Gmail thread to classify.
-   * @returns {{labels: string[], from: string, domain: string}}
+   * Caches parsed email bodies to avoid redundant processing.
+   * @type {Map<string, {from: string, domain: string, body: string}>}
    */
-  classifyThread(thread) {
-    const labelsToApply = new Set();
-    const matchedRules = new Set();
-    const matchedDomains = new Set();
-    const matchedKeywords = new Set();
-    const matchedSender = new Set();
+  const threadCache = new Map();
 
-    const messages = thread.getMessages();
-    if (!messages || messages.length === 0) {
-      AppLogger.warn(
-        `Skipping thread with ID ${thread.getId()} because it has no messages.`
-      );
-      return {
-        labels: [],
-        from: '',
-        domain: '',
-        matchedRules: [],
-        matchedDomains: [],
-        matchedKeywords: [],
-        matchedSender: [],
-      };
-    }
-    const firstMessage = messages[0];
+  /**
+   * Extracts and caches relevant information from a thread.
+   * @param {GoogleAppsScript.Gmail.GmailThread} thread The thread to process.
+   * @returns {{from: string, domain: string, body: string}}
+   */
+  function getThreadInfo(thread) {
     const threadId = thread.getId();
-
-    if (CONFIG.EXECUTION.DEBUG) {
-      AppLogger.debug(
-        `  [CLASSIFICATION] Starting for thread "${thread.getFirstMessageSubject()}" (ID: ${threadId})`
-      );
+    if (threadCache.has(threadId)) {
+      return threadCache.get(threadId);
     }
 
-    // --- GATHERING EMAIL DATA ---
+    const from = (thread.getMessages()[0].getFrom() || '').toLowerCase();
+    const domain = from.includes('@') ? from.split('@')[1].replace('>', '') : '';
+    // Get a plain text version of the body, truncated for performance.
+    const body = thread.getMessages()[0].getPlainBody().toLowerCase().substring(0, 5000);
 
+    const info = { from, domain, body };
+    threadCache.set(threadId, info);
+    return info;
+  }
+
+  /**
+   * Classifies a single Gmail thread based on the rules in Config.gs.
+   * @param {GoogleAppsScript.Gmail.GmailThread} thread The Gmail thread to classify.
+   * @returns {{labels: string[], from: string, domain: string}} The classification result.
+   */
+  function classifyThread(thread) {
     const subject = (thread.getFirstMessageSubject() || '').toLowerCase();
+    const { from, domain, body } = getThreadInfo(thread);
 
-    const fromRaw = firstMessage.getFrom() || '';
-    const from = Utils.normalizeEmail(fromRaw);
-    const domain = Utils.getDomainFromEmail(fromRaw);
+    const classificationRules = CONFIG.CLASSIFICATION_RULES || [];
 
-    const bodyText = (
-      firstMessage.getPlainBody() ||
-      firstMessage.getBody() ||
-      ''
-    )
-      .substring(0, 5000)
-      .toLowerCase();
+    // Separate priority rules from normal rules
+    const priorityRules = classificationRules.filter((rule) => rule.isPriority);
+    const normalRules = classificationRules.filter((rule) => !rule.isPriority);
 
-    const existingLabels = thread
-      .getLabels()
-      .map((l) => l.getName().toLowerCase());
+    // Function to check if a thread matches a rule's criteria
+    const checkMatch = (rule) => {
+      if (!rule.criteria) return false;
+      const { from: fromCrit, domain: domainCrit, subject: subjectCrit, body: bodyCrit } = rule.criteria;
 
-    const rules = Utils.getClassificationRules();
-    const rulesSource = CONFIG?.CLASSIFICATION_RULES
-      ? 'CONFIG.CLASSIFICATION_RULES'
-      : CONFIG?.RULES?.CLASSIFICATION_RULES
-        ? 'CONFIG.RULES.CLASSIFICATION_RULES'
-        : 'none';
-
-    if (CONFIG.EXECUTION.DEBUG) {
-      if (rulesSource === 'CONFIG.RULES.CLASSIFICATION_RULES') {
-        AppLogger.debug(
-          '    > Warning: classification rules were found under CONFIG.RULES.CLASSIFICATION_RULES. Please move them to CONFIG.CLASSIFICATION_RULES or keep this fallback until configuration is corrected.'
-        );
+      if (fromCrit && fromCrit.some((f) => from.includes(f.toLowerCase()))) {
+        return true;
       }
-      if (rules.length === 0) {
-        AppLogger.debug(
-          '    > Warning: No classification rules were found. Check CONFIG.CLASSIFICATION_RULES.'
-        );
+      if (domainCrit && domainCrit.some((d) => domain.includes(d.toLowerCase()))) {
+        return true;
       }
-      AppLogger.debug(
-        `    > Loaded ${rules.length} classification rule(s) from ${rulesSource}.`
-      );
-      AppLogger.debug(`    > From: ${fromRaw} (Normalized: ${from})`);
-      AppLogger.debug(`    > Domain: ${domain}`);
-      AppLogger.debug(`    > Subject: ${subject}`);
-      AppLogger.debug(`    > Existing Labels: [${existingLabels.join(', ')}]`);
-      AppLogger.debug(
-        `    > Body (first 200 chars): ${bodyText.substring(0, 200)}...`
-      );
-    }
-
-    /**
-     * Checks if an email value matches a rule criterion, which can be a string or an array.
-     * @param {string|string[]} criterion The rule criterion value.
-     * @param {string} emailValue The value from the email.
-     * @param {'includes'|'exact'} matchType The type of match to perform.
-     * @returns {boolean} True if it matches.
-     */
-    const _matchesCriterion = (criterion, emailValue, matchType) => {
-      if (!criterion) {
-        return true; // A non-existent criterion is always a "pass".
+      if (subjectCrit && subjectCrit.some((s) => subject.includes(s.toLowerCase()))) {
+        return true;
       }
-      if (!emailValue) {
-        if (CONFIG.EXECUTION.DEBUG) {
-          AppLogger.debug(
-            `      > Match failed for criterion [${criterion}]: Email value is empty.`
-          );
-        }
-        return false; // A criterion requires a value to match against.
-      }
-      const values = Array.isArray(criterion) ? criterion : [criterion];
-
-      if (matchType === 'includes') {
-        const match = values.some((v) =>
-          emailValue.includes(String(v).toLowerCase())
-        );
-        if (CONFIG.EXECUTION.DEBUG) {
-          AppLogger.debug(
-            `      > [includes] Checking if "${emailValue.substring(
-              0,
-              100
-            )}..." contains any of [${values.join(', ')}]. Result: ${match}`
-          );
-        }
-        return match;
-      }
-      if (matchType === 'exact') {
-        const match = values.some(
-          (v) => String(v).toLowerCase() === emailValue
-        );
-        if (CONFIG.EXECUTION.DEBUG) {
-          AppLogger.debug(
-            `      > [exact] Checking if "${emailValue}" is an exact match for any of [${values.join(
-              ', '
-            )}]. Result: ${match}`
-          );
-        }
-        return match;
-      }
-      // Special handling for domains to match subdomains correctly.
-      // e.g., an email from 'notifications.github.com' should match a rule for 'github.com'.
-      if (matchType === 'domain') {
-        const match = values.some((v) => {
-          const critDomain = String(v).toLowerCase();
-          return (
-            emailValue === critDomain || emailValue.endsWith(`.${critDomain}`)
-          );
-        });
-        if (CONFIG.EXECUTION.DEBUG) {
-          AppLogger.debug(
-            `      > [domain] Checking if domain "${emailValue}" matches any of [${values.join(
-              ', '
-            )}]. Result: ${match}`
-          );
-        }
-        return match;
-      }
-      if (CONFIG.EXECUTION.DEBUG) {
-        AppLogger.debug(
-          `      > Unknown matchType "${matchType}". Returning false.`
-        );
+      if (bodyCrit && bodyCrit.some((b) => body.includes(b.toLowerCase()))) {
+        return true;
       }
       return false;
     };
 
-    let matchedAnyRule = false;
-    for (const rule of rules) {
-      if (!rule || !rule.labels || rule.labels.length === 0) continue;
-
-      const { criteria = {}, labels, isPriority } = rule;
-      const ruleDescription = `rule with labels [${labels.join(
-        ', '
-      )}] and criteria ${JSON.stringify(criteria)}`;
-      if (CONFIG.EXECUTION.DEBUG) {
-        AppLogger.debug(`  [RULE_CHECK] Evaluating ${ruleDescription}`);
-      }
-
-      let matched = true;
-
-      if (criteria.from) {
-        if (CONFIG.EXECUTION.DEBUG)
-          AppLogger.debug(`    - Checking 'from' criterion...`);
-        if (!_matchesCriterion(criteria.from, from, 'includes')) {
-          matched = false;
-        }
-      }
-
-      if (matched && criteria.domain) {
-        if (CONFIG.EXECUTION.DEBUG)
-          AppLogger.debug(`    - Checking 'domain' criterion...`);
-        if (!_matchesCriterion(criteria.domain, domain, 'domain')) {
-          matched = false;
-        } else {
-          const values = Array.isArray(criteria.domain)
-            ? criteria.domain
-            : [criteria.domain];
-          values.forEach((value) => matchedDomains.add(String(value)));
-        }
-      }
-
-      if (matched && criteria.subject) {
-        if (CONFIG.EXECUTION.DEBUG)
-          AppLogger.debug(`    - Checking 'subject' criterion...`);
-        if (!_matchesCriterion(criteria.subject, subject, 'includes')) {
-          matched = false;
-        } else {
-          const values = Array.isArray(criteria.subject)
-            ? criteria.subject
-            : [criteria.subject];
-          values.forEach((value) => matchedKeywords.add(String(value)));
-        }
-      }
-
-      if (matched && criteria.body) {
-        if (CONFIG.EXECUTION.DEBUG)
-          AppLogger.debug(`    - Checking 'body' criterion...`);
-        if (!_matchesCriterion(criteria.body, bodyText, 'includes')) {
-          matched = false;
-        } else {
-          const values = Array.isArray(criteria.body)
-            ? criteria.body
-            : [criteria.body];
-          values.forEach((value) => matchedKeywords.add(String(value)));
-        }
-      }
-
-      if (CONFIG.EXECUTION.DEBUG) {
-        AppLogger.debug(`    > Overall rule match result: ${matched}`);
-      }
-
-      if (matched) {
-        matchedAnyRule = true;
-        matchedRules.add(ruleDescription);
-        if (criteria.from) {
-          const values = Array.isArray(criteria.from)
-            ? criteria.from
-            : [criteria.from];
-          values.forEach((value) => matchedSender.add(String(value)));
-        }
-        if (CONFIG.EXECUTION.DEBUG) {
-          AppLogger.debug(
-            `  [RULE MATCH] Matched rule for subject "${subject}", queueing labels: [${labels.join(
-              ', '
-            )}]`
-          );
-        }
-        labels.forEach((label) => labelsToApply.add(label));
-
-        if (isPriority) {
-          if (CONFIG.EXECUTION.DEBUG) {
-            AppLogger.debug(
-              '  [RULE PRIORITY] This is a priority rule. Stopping further rule processing for this thread.'
-            );
-          }
-          break;
-        }
+    // Process priority rules first. If a match is found, stop and return.
+    for (const rule of priorityRules) {
+      if (checkMatch(rule)) {
+        return {
+          labels: rule.labels || [],
+          from: from,
+          domain: domain,
+        };
       }
     }
 
-    if (!matchedAnyRule) {
-      if (CONFIG.EXECUTION.DEBUG) {
-        AppLogger.debug(
-          '  [FALLBACK] No classification rules matched. Applying Delete label.'
-        );
+    // If no priority rule matched, process normal rules.
+    const matchedLabels = new Set();
+    for (const rule of normalRules) {
+      if (checkMatch(rule)) {
+        (rule.labels || []).forEach((label) => matchedLabels.add(label));
       }
-      labelsToApply.add('Delete');
-      matchedRules.add(
-        'Fallback: Delete because no classification rule matched'
-      );
+    }
+
+    // If no rules matched, apply the default behavior as per README documentation.
+    // This treats any unclassified, non-important email as a candidate for deletion.
+    if (matchedLabels.size === 0) {
+      // The 'Delete' label marks it for the TRASH_RULES to process.
+      matchedLabels.add('Delete');
     }
 
     return {
-      labels: [...labelsToApply],
-      from,
-      domain,
-      matchedRules: [...matchedRules],
-      matchedDomains: [...matchedDomains],
-      matchedKeywords: [...matchedKeywords],
-      matchedSender: [...matchedSender],
+      labels: [...matchedLabels],
+      from: from,
+      domain: domain,
     };
-  },
-};
+  }
+
+  /**
+   * Clears the internal cache. Should be called at the end of an execution.
+   */
+  function clearCache() {
+    threadCache.clear();
+  }
+
+  return {
+    classifyThread: classifyThread,
+    clearCache: clearCache,
+  };
+})();

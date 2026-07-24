@@ -152,216 +152,84 @@ function gmailCleanup() {
     AppLogger.log('*** DRY RUN IS ENABLED. NO CHANGES WILL BE MADE. ***');
   }
 
-  const properties = PropertiesService.getScriptProperties();
-  const savedState = JSON.parse(properties.getProperty('cleanupState') || '{}');
-  if (savedState.stats) {
-    AppLogger.log('Resuming previous cleanup run.');
-  } else {
-    AppLogger.log('Starting a new cleanup run.');
-  }
-
-  const classificationRules =
-    CONFIG.CLASSIFICATION_RULES ||
-    (CONFIG.RULES && CONFIG.RULES.CLASSIFICATION_RULES) ||
-    [];
-  if (CONFIG.EXECUTION.DEBUG) {
-    AppLogger.debug(
-      `Loaded ${classificationRules.length} classification rule(s) for this run.`
-    );
-  }
+  // Load state for resumable execution
+  const runState = StateService.loadState();
+  const { stats, processedThreadIds } = runState;
 
   // Make sure all configured labels exist before processing cleanup.
-  // This prevents failures when labels are referenced in rules but not yet created.
   LabelService.ensureLabelsExist();
 
-  const defaultStats = {
-    processedCount: 0,
-    archivedCount: 0,
-    labeledByLabel: {},
-    trashedCount: 0,
-    skippedCount: 0,
-    errorsCount: 0,
-    startTime: new Date().getTime(),
-  };
-  const stats = { ...defaultStats, ...(savedState.stats || {}) };
-  stats.labeledByLabel = stats.labeledByLabel || {};
-  stats.errorsCount = stats.errorsCount || 0;
-  const BATCH_SIZE = CONFIG.EXECUTION.BATCH_SIZE;
-  const managedLabels = (CONFIG.LABELS.REQUIRED_LABELS || [])
-    .map((l) => `label:"${l.replace(/"/g, '\\"')}"`)
-    .join(' OR ');
-
-  let searchQuery = `(in:inbox OR (${managedLabels}))`;
-  if (CONFIG.EXECUTION.SEARCH_OLDER_THAN_DAYS > 0) {
-    searchQuery += ` older_than:${CONFIG.EXECUTION.SEARCH_OLDER_THAN_DAYS}d`;
-  }
-
-  AppLogger.debug(`Using search query: "${searchQuery}"`);
+  const searchQuery = GmailUtils.buildSearchQuery();
 
   try {
-    let threads = [];
-    let totalThreadsFound = 0;
+    // Fetch all threads, excluding those already processed in previous runs.
+    const allThreads = GmailUtils.searchThreads(searchQuery, processedThreadIds);
 
-    // Use a continuous loop that is explicitly broken out of. This is more robust
-    // than `do-while` and avoids the unreliable `offset` parameter in GmailApp.search.
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      AppLogger.log('Searching for next batch of threads...');
-      threads = GmailApp.search(searchQuery, 0, BATCH_SIZE);
-      totalThreadsFound += threads.length;
+    if (allThreads.length === 0) {
+      AppLogger.log('No new threads found to process.');
+      StateService.saveState(runState, [], true); // Mark as complete
+      return;
+    }
 
-      if (threads.length === 0) {
-        AppLogger.log('No more threads found matching the search query.');
-        break;
-      }
+    // Sort threads to process oldest first, which is generally safer.
+    const sortedThreads = GmailUtils.sortThreadsByDate(allThreads, 'asc');
 
-      // Ensure we process the oldest threads first within each fetched batch.
-      // GmailApp.search does not guarantee oldest-first ordering, so sort here.
-      threads.sort((a, b) => a.getLastMessageDate() - b.getLastMessageDate());
-      if (CONFIG.EXECUTION.DEBUG) {
-        AppLogger.debug(
-          'Sorted fetched threads from oldest to newest by last message date.'
-        );
-      }
+    // Fetch the Priority label once outside the loop for performance.
+    const priorityLabelName = 'Priority';
+    const priorityLabel = GmailApp.getUserLabelByName(priorityLabelName);
 
+    const processedInThisRun = [];
+
+    for (const thread of sortedThreads) {
       // --- Pre-processing for Important Emails ---
-      // The script normally skips emails marked as 'important' by Gmail for safety.
-      // This logic intercepts them and applies our own 'Important' label
-      // so the action is visible and logged, instead of being skipped silently.
-      const priorityLabelName = 'Priority';
-      const priorityLabel = GmailApp.getUserLabelByName(priorityLabelName);
       if (priorityLabel) {
-        for (const thread of threads) {
-          // Check if Gmail considers it important AND we haven't already labeled it.
-          const hasPriorityLabel = thread
-            .getLabels()
-            .some((l) => l.getName() === priorityLabelName);
-          if (thread.isImportant() && !hasPriorityLabel) {
-            AppLogger.log(
-              `Gmail-marked important thread found: "${thread.getFirstMessageSubject()}". Applying '${priorityLabelName}' label.`
-            );
-            if (!CONFIG.EXECUTION.DRY_RUN) {
-              thread.addLabel(priorityLabel);
-              // Manually update stats for this pre-processing step
-              stats.labeledByLabel[priorityLabelName] =
-                (stats.labeledByLabel[priorityLabelName] || 0) + 1;
-            }
+        const hasPriorityLabel = thread
+          .getLabels()
+          .some((l) => l.getName() === priorityLabelName);
+        if (thread.isImportant() && !hasPriorityLabel) {
+          AppLogger.log(
+            `Gmail-marked important thread found: "${thread.getFirstMessageSubject()}". Applying '${priorityLabelName}' label.`
+          );
+          if (!CONFIG.EXECUTION.DRY_RUN) {
+            thread.addLabel(priorityLabel);
+            stats.labeledCount++;
           }
         }
       }
-      // All threads (some now newly labeled) are passed on for further processing.
 
-      const maxToProcess = CONFIG.EXECUTION.MAX_THREADS_TO_PROCESS;
-      let threadsToProcess = threads;
+      // Process a single thread
+      CleanupService.processThread(thread, stats);
+      processedInThisRun.push(thread.getId());
 
-      // If a processing limit is set, check if we need to slice this batch.
-      if (maxToProcess > 0) {
-        const remaining = maxToProcess - stats.processedCount;
-        if (remaining <= 0) {
-          AppLogger.log(
-            `Processing limit of ${maxToProcess} already met. Stopping.`
-          );
-          break; // Exit the loop.
-        }
-        if (threads.length > remaining) {
-          AppLogger.log(
-            `Trimming batch from ${threads.length} to ${remaining} to respect processing limit of ${maxToProcess}.`
-          );
-          threadsToProcess = threads.slice(0, remaining);
-        }
-      }
-
-      AppLogger.log(
-        `Processing a batch of ${threadsToProcess.length} thread(s).`
-      );
-
-      // If debug mode is on, log the subjects of threads being processed.
-      if (CONFIG.EXECUTION.DEBUG && threadsToProcess.length > 0) {
-        AppLogger.log('--- Threads in this batch ---');
-        threadsToProcess.forEach((thread, index) => {
-          AppLogger.log(
-            `  [${index + 1}] Subject: "${thread.getFirstMessageSubject()}"`
-          );
-        });
-        AppLogger.log('-----------------------------');
-      }
-
-      // By capturing stats before and after, we can log the actions taken within this specific batch.
-      const statsBefore = {
-        ...stats,
-        labeledByLabel: { ...stats.labeledByLabel },
-      };
-
-      CleanupService.processThreads(threadsToProcess, stats);
-
-      const batchThreadCount = threadsToProcess.length;
-      const processedInBatch =
-        stats.processedCount - statsBefore.processedCount;
-      if (processedInBatch !== batchThreadCount) {
-        AppLogger.warn(
-          `Batch processed count mismatch: expected ${batchThreadCount}, ` +
-            `but stats delta is ${processedInBatch}.`
-        );
-      }
-      const archivedInBatch = stats.archivedCount - statsBefore.archivedCount;
-      const trashedInBatch = stats.trashedCount - statsBefore.trashedCount;
-      const skippedInBatch = stats.skippedCount - statsBefore.skippedCount;
-      const keptInBatch =
-        batchThreadCount - archivedInBatch - trashedInBatch - skippedInBatch;
-
-      let totalLabeledInBatch = 0;
-      for (const label in stats.labeledByLabel) {
-        const after = stats.labeledByLabel[label] || 0;
-        const before = statsBefore.labeledByLabel[label] || 0;
-        if (after > before) {
-          totalLabeledInBatch += after - before;
-        }
-      }
-
-      let batchLog = `  > Batch actions: Processed: ${processedInBatch}, Archived: ${archivedInBatch}, Trashed: ${trashedInBatch}, Skipped: ${skippedInBatch}`;
-      if (keptInBatch > 0) {
-        batchLog += `, Kept: ${keptInBatch}`;
-      }
-      if (totalLabeledInBatch > 0) {
-        batchLog += `, Labeled: ${totalLabeledInBatch}`;
-      }
-      AppLogger.log(batchLog);
-
+      // Check for timeout after each thread
       if (Utils.isTimeRunningOut()) {
-        properties.setProperty(
-          'cleanupState',
-          JSON.stringify({ stats: stats })
-        );
         AppLogger.log(
           'Execution time limit is approaching. Saving state and pausing.'
         );
-        AppLogger.log(
-          'The script will resume from this point on the next run.'
-        );
-        break;
-      }
-
-      // If we sliced the batch, it means we hit our processing limit, so we should stop.
-      if (threadsToProcess.length < threads.length) {
-        break;
+        StateService.saveState(runState, processedInThisRun, false);
+        return; // Exit function to be resumed later
       }
     }
+
+    // If the loop completes, all threads have been processed.
+    StateService.saveState(runState, processedInThisRun, true); // Mark as complete
 
     AppLogger.log('====== Gmail Cleanup Complete ======');
 
     const totalRuntime = Utils.getScriptRuntime();
-    const threadsFoundAndLoaded = stats.processedCount;
-    const labeledCount =
-      Object.keys(stats.labeledByLabel).length > 0
-        ? Object.values(stats.labeledByLabel).reduce((a, b) => a + b, 0)
-        : 0;
+    const {
+      processedCount,
+      labeledCount,
+      trashedCount,
+      archivedCount,
+      skippedCount,
+      errorCount,
+    } = stats;
 
     AppLogger.log('====== Final Execution Summary ======');
-    AppLogger.log(`- Threads Found: ${totalThreadsFound}`);
-    AppLogger.log(`- Threads Loaded: ${threadsFoundAndLoaded}`);
-    AppLogger.log(`- Threads Classified: ${stats.processedCount}`);
+    AppLogger.log(`- Threads Processed: ${processedCount}`);
     AppLogger.log(
-      `- Threads Matching Rules (new labels applied): ${labeledCount}`
+      `- Threads Labeled: ${labeledCount}`
     );
     if (labeledCount === 0) {
       AppLogger.log(
@@ -369,58 +237,48 @@ function gmailCleanup() {
       );
     }
 
-    AppLogger.log(`- Threads Selected For Trash: ${stats.trashedCount}`);
-    if (stats.trashedCount === 0) {
+    AppLogger.log(`- Threads Selected For Trash: ${trashedCount}`);
+    if (trashedCount === 0) {
       AppLogger.log(
         '  - WHY: No threads met the criteria for any TRASH_RULES (e.g., wrong label, not old enough), or all that did were protected by safety rules.'
       );
     }
 
     AppLogger.log(
-      `- Threads Actually Trashed: ${CONFIG.EXECUTION.DRY_RUN ? 0 : stats.trashedCount}`
+      `- Threads Actually Trashed: ${CONFIG.EXECUTION.DRY_RUN ? 0 : trashedCount}`
     );
-    if (CONFIG.EXECUTION.DRY_RUN && stats.trashedCount > 0) {
+    if (CONFIG.EXECUTION.DRY_RUN && trashedCount > 0) {
       AppLogger.log(
         '  - WHY: DRY_RUN is enabled, so no threads were actually trashed.'
       );
     }
 
-    AppLogger.log(`- Threads Selected For Archive: ${stats.archivedCount}`);
-    if (stats.archivedCount === 0) {
+    AppLogger.log(`- Threads Selected For Archive: ${archivedCount}`);
+    if (archivedCount === 0) {
       AppLogger.log(
         '  - WHY: No threads met the criteria for any ARCHIVE_RULES (e.g., wrong label, unread status).'
       );
     }
 
     AppLogger.log(
-      `- Threads Actually Archived: ${CONFIG.EXECUTION.DRY_RUN ? 0 : stats.archivedCount}`
+      `- Threads Actually Archived: ${CONFIG.EXECUTION.DRY_RUN ? 0 : archivedCount}`
     );
-    if (CONFIG.EXECUTION.DRY_RUN && stats.archivedCount > 0) {
+    if (CONFIG.EXECUTION.DRY_RUN && archivedCount > 0) {
       AppLogger.log(
         '  - WHY: DRY_RUN is enabled, so no threads were actually archived.'
       );
     }
 
-    AppLogger.log(`- Threads Skipped: ${stats.skippedCount}`);
-    if (stats.skippedCount === 0) {
+    AppLogger.log(`- Threads Skipped: ${skippedCount}`);
+    if (skippedCount === 0) {
       AppLogger.log(
         '  - WHY: No threads were skipped by safety checks or rule conflicts.'
       );
     }
 
-    AppLogger.log(`- Threads Failed: ${stats.errorsCount || 0}`);
-    if ((stats.errorsCount || 0) === 0) {
+    AppLogger.log(`- Threads Failed: ${errorCount || 0}`);
+    if ((errorCount || 0) === 0) {
       AppLogger.log('  - WHY: No thread processing errors occurred.');
-    }
-    AppLogger.log('');
-    AppLogger.log('- Detailed Labeling Summary:');
-    const labeledEntries = Object.entries(stats.labeledByLabel);
-    if (labeledEntries.length > 0) {
-      labeledEntries.forEach(([label, count]) => {
-        if (count > 0) AppLogger.log(`    - ${label}: ${count}`);
-      });
-    } else {
-      AppLogger.log('    (No new labels were applied)');
     }
     AppLogger.log('');
     AppLogger.log(`- Total Runtime: ${totalRuntime} seconds.`);
@@ -436,7 +294,6 @@ function gmailCleanup() {
       status: 'Success',
       completedAt: new Date().toISOString(),
     });
-    properties.deleteProperty('cleanupState');
   } catch (e) {
     AppLogger.error('A critical error occurred during gmailCleanup.', e);
     _sendErrorNotification('Script Failure: gmailCleanup', e.stack);
@@ -446,6 +303,7 @@ function gmailCleanup() {
       error: e.message,
       completedAt: new Date().toISOString(),
     });
+    StateService.saveState(runState, [], false); // Save state on failure
   } finally {
     lock.releaseLock();
   }
@@ -564,17 +422,30 @@ function _cleanupEmptyLabels() {
   userLabels.forEach((label) => {
     const labelName = label.getName();
 
+    // Safety Check: Do not delete protected labels, even if they are empty.
+    if (protectedLabels.has(labelName.toLowerCase())) {
+      if (CONFIG.EXECUTION.DEBUG) {
+        AppLogger.debug(`Skipping protected label "${labelName}".`);
+      }
+      return;
+    }
+
     try {
       const escapedLabelName = labelName.replace(/"/g, '\\"');
       const searchQuery = `label:"${escapedLabelName}" -in:trash -in:spam`;
-      const liveThreads = GmailApp.search(searchQuery, 0, 1).length;
-      if (liveThreads === 0) {
+      // Use the more efficient advanced service to check for existence, not count.
+      const response = Gmail.Users.Threads.list('me', {
+        q: searchQuery,
+        maxResults: 1,
+      });
+
+      if (!response.threads || response.threads.length === 0) {
         AppLogger.log(`Label "${labelName}" is empty. Deleting it.`);
         label.deleteLabel();
         removedCount++;
       } else if (CONFIG.EXECUTION.DEBUG) {
         AppLogger.debug(
-          `Skipping label "${labelName}" because it still has ${liveThreads} non-trashed/non-spam thread(s).`
+          `Skipping label "${labelName}" because it still has ${response.threads.length > 0 ? 'at least 1' : 'unknown'} non-trashed/non-spam thread(s).`
         );
       }
     } catch (e) {
