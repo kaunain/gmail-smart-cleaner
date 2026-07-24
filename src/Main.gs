@@ -163,7 +163,10 @@ function gmailCleanup() {
 
   try {
     // Fetch all threads, excluding those already processed in previous runs.
-    const allThreads = GmailUtils.searchThreads(searchQuery, processedThreadIds);
+    const allThreads = GmailUtils.searchThreads(
+      searchQuery,
+      processedThreadIds
+    );
 
     if (allThreads.length === 0) {
       AppLogger.log('No new threads found to process.');
@@ -177,12 +180,16 @@ function gmailCleanup() {
     // Fetch the Priority label once outside the loop for performance.
     const priorityLabelName = 'Priority';
     const priorityLabel = GmailApp.getUserLabelByName(priorityLabelName);
+    // Fetch all user labels once and create a map for efficient lookups.
+    const userLabels = GmailApp.getUserLabels();
+    const labelMap = new Map(userLabels.map((l) => [l.getName(), l]));
 
     const processedInThisRun = [];
 
     for (const thread of sortedThreads) {
       // --- Pre-processing for Important Emails ---
       if (priorityLabel) {
+        // Note: We use the pre-fetched priorityLabel object here.
         const hasPriorityLabel = thread
           .getLabels()
           .some((l) => l.getName() === priorityLabelName);
@@ -198,7 +205,7 @@ function gmailCleanup() {
       }
 
       // Process a single thread
-      CleanupService.processThread(thread, stats);
+      CleanupService.processThread(thread, stats, labelMap);
       processedInThisRun.push(thread.getId());
 
       // Check for timeout after each thread
@@ -228,9 +235,7 @@ function gmailCleanup() {
 
     AppLogger.log('====== Final Execution Summary ======');
     AppLogger.log(`- Threads Processed: ${processedCount}`);
-    AppLogger.log(
-      `- Threads Labeled: ${labeledCount}`
-    );
+    AppLogger.log(`- Threads Labeled: ${labeledCount}`);
     if (labeledCount === 0) {
       AppLogger.log(
         '  - WHY: No threads matched any CLASSIFICATION_RULES, or all matched threads already had the required labels.'
@@ -305,6 +310,7 @@ function gmailCleanup() {
     });
     StateService.saveState(runState, [], false); // Save state on failure
   } finally {
+    RuleEngine.clearCache(); // Ensure cache is cleared after every run.
     lock.releaseLock();
   }
 }

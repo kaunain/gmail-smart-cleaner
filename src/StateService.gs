@@ -53,7 +53,10 @@ const StateService = (function () {
       const newState = { ...runState };
       delete newState.isResumed; // Don't save the transient 'isResumed' flag
       newState.processedThreadIds.push(...processedIds);
-      SCRIPT_PROPERTIES.setProperty(STATE_PROPERTY_KEY, JSON.stringify(newState));
+      SCRIPT_PROPERTIES.setProperty(
+        STATE_PROPERTY_KEY,
+        JSON.stringify(newState)
+      );
     }
   }
 

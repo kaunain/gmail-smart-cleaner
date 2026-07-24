@@ -20,10 +20,19 @@ const RuleEngine = (function () {
       return threadCache.get(threadId);
     }
 
-    const from = (thread.getMessages()[0].getFrom() || '').toLowerCase();
-    const domain = from.includes('@') ? from.split('@')[1].replace('>', '') : '';
+    // Use a regular expression to reliably extract the email address from the 'From' header,
+    // which can have various formats (e.g., "Sender Name <email@example.com>").
+    const fromHeader = thread.getMessages()[0].getFrom() || '';
+    const emailMatch = fromHeader.match(/<([^>]+)>/);
+    const from = (emailMatch ? emailMatch[1] : fromHeader).toLowerCase();
+    const domain = from.includes('@') ? from.split('@')[1] : '';
+
     // Get a plain text version of the body, truncated for performance.
-    const body = thread.getMessages()[0].getPlainBody().toLowerCase().substring(0, 5000);
+    const body = thread
+      .getMessages()[0]
+      .getPlainBody()
+      .toLowerCase()
+      .substring(0, 5000);
 
     const info = { from, domain, body };
     threadCache.set(threadId, info);
@@ -48,15 +57,26 @@ const RuleEngine = (function () {
     // Function to check if a thread matches a rule's criteria
     const checkMatch = (rule) => {
       if (!rule.criteria) return false;
-      const { from: fromCrit, domain: domainCrit, subject: subjectCrit, body: bodyCrit } = rule.criteria;
+      const {
+        from: fromCrit,
+        domain: domainCrit,
+        subject: subjectCrit,
+        body: bodyCrit,
+      } = rule.criteria;
 
       if (fromCrit && fromCrit.some((f) => from.includes(f.toLowerCase()))) {
         return true;
       }
-      if (domainCrit && domainCrit.some((d) => domain.includes(d.toLowerCase()))) {
+      if (
+        domainCrit &&
+        domainCrit.some((d) => domain.includes(d.toLowerCase()))
+      ) {
         return true;
       }
-      if (subjectCrit && subjectCrit.some((s) => subject.includes(s.toLowerCase()))) {
+      if (
+        subjectCrit &&
+        subjectCrit.some((s) => subject.includes(s.toLowerCase()))
+      ) {
         return true;
       }
       if (bodyCrit && bodyCrit.some((b) => body.includes(b.toLowerCase()))) {
