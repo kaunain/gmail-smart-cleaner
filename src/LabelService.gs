@@ -42,6 +42,7 @@ const LabelService = {
       name.toLowerCase()
     );
     let createdCount = 0;
+    const createdLabels = [];
     CONFIG.LABELS.REQUIRED_LABELS.forEach((labelName) => {
       if (!existingLabelsLower.includes(labelName.toLowerCase())) {
         try {
@@ -52,7 +53,7 @@ const LabelService = {
               () => GmailApp.createLabel(labelName),
               `create label "${labelName}"`
             );
-            AppLogger.log(`Created label: "${labelName}"`);
+            createdLabels.push(labelName);
           }
           createdCount++;
         } catch (e) {
@@ -62,6 +63,9 @@ const LabelService = {
     });
     if (createdCount > 0) {
       const action = CONFIG.EXECUTION.DRY_RUN ? 'identified' : 'created';
+      if (!CONFIG.EXECUTION.DRY_RUN && createdLabels.length > 0) {
+        AppLogger.log(`Created labels: ${createdLabels.join(', ')}`);
+      }
       AppLogger.log(`Successfully ${action} ${createdCount} missing label(s).`);
       // Invalidate cache if we created new labels
       CacheService.getScriptCache().remove('userLabels');

@@ -217,17 +217,21 @@ function gmailCleanup() {
           (stats.labeledCount || 0) - (statsBeforeBatch.labeledCount || 0);
         if (labeledInBatch > 0) {
           const labeledByLabelBefore = statsBeforeBatch.labeledByLabel || {};
+          const labelSummaryParts = [];
           for (const label in stats.labeledByLabel) {
             const countAfter = stats.labeledByLabel[label];
             const countBefore = labeledByLabelBefore[label] || 0;
             const delta = countAfter - countBefore;
             if (delta > 0) {
-              summaryParts.push(`${label} : ${delta}`);
+              labelSummaryParts.push(`${label} : ${delta}`);
             }
+          }
+          if (labelSummaryParts.length > 0) {
+            summaryParts.push(...labelSummaryParts);
           }
         }
 
-        AppLogger.log(summaryParts.join(' | '));
+        AppLogger.summary(summaryParts.join(' | '));
       } else if (result.processedIds.length > 0) {
         // This case can happen if threads were fetched but already processed in a previous run.
         AppLogger.log(
@@ -272,70 +276,43 @@ function gmailCleanup() {
       errorCount,
     } = stats;
 
-    AppLogger.log('====== Final Execution Summary ======');
-    AppLogger.log(`- Threads Processed: ${processedCount}`);
-    AppLogger.log(`- Total Threads Labeled: ${labeledCount}`);
+    const remainingReviewedCount = Math.max(0, processedCount - skippedCount);
+
+    AppLogger.table('Cleanup Summary', [
+      ['Reviewed', processedCount],
+      ['Safety blocked', skippedCount],
+      ['No action', remainingReviewedCount],
+      ['Labeled', labeledCount],
+      ['Trash', trashedCount],
+      ['Archive', archivedCount],
+      ['Failed', errorCount || 0],
+      ['Runtime', `${totalRuntime}s`],
+      ['Dry Run', CONFIG.EXECUTION.DRY_RUN ? 'Yes' : 'No'],
+    ]);
+
+    if (skippedCount > 0 || remainingReviewedCount > 0) {
+      AppLogger.log(
+        `Breakdown → reviewed ${processedCount} | safety-blocked ${skippedCount} | no action ${remainingReviewedCount}`
+      );
+    }
+
     if (labeledCount > 0 && stats.labeledByLabel) {
-      Object.entries(stats.labeledByLabel).forEach(([label, count]) => {
-        AppLogger.log(`  - Applied Label "${label}": ${count} time(s)`);
-      });
+      const labelSummary = Object.entries(stats.labeledByLabel)
+        .map(([label, count]) => `${label}: ${count}`)
+        .join(' | ');
+      AppLogger.log(`Applied labels → ${labelSummary}`);
     } else {
       AppLogger.log(
-        '  - WHY: No threads matched any CLASSIFICATION_RULES, or all matched threads already had the required labels.'
+        'Applied labels → none (no matching rules or labels already present)'
       );
     }
 
-    AppLogger.log(`- Total Threads Selected For Trash: ${trashedCount}`);
     if (trashedCount > 0 && stats.trashedByRule) {
-      Object.entries(stats.trashedByRule).forEach(([rule, count]) => {
-        AppLogger.log(`  - Matched Trash Rule "${rule}": ${count} time(s)`);
-      });
-    } else {
-      AppLogger.log(
-        '  - WHY: No threads met the criteria for any TRASH_RULES (e.g., wrong label, not old enough), or all that did were protected by safety rules.'
-      );
+      const trashSummary = Object.entries(stats.trashedByRule)
+        .map(([rule, count]) => `${rule}: ${count}`)
+        .join(' | ');
+      AppLogger.log(`Trash rules → ${trashSummary}`);
     }
-
-    AppLogger.log(
-      `- Threads Actually Trashed: ${CONFIG.EXECUTION.DRY_RUN ? 0 : trashedCount}`
-    );
-    if (CONFIG.EXECUTION.DRY_RUN && trashedCount > 0) {
-      AppLogger.log(
-        '  - WHY: DRY_RUN is enabled, so no threads were actually trashed.'
-      );
-    }
-
-    AppLogger.log(`- Threads Selected For Archive: ${archivedCount}`);
-    if (archivedCount === 0) {
-      AppLogger.log(
-        '  - WHY: No threads met the criteria for any ARCHIVE_RULES (e.g., wrong label, unread status).'
-      );
-    }
-
-    AppLogger.log(
-      `- Threads Actually Archived: ${CONFIG.EXECUTION.DRY_RUN ? 0 : archivedCount}`
-    );
-    if (CONFIG.EXECUTION.DRY_RUN && archivedCount > 0) {
-      AppLogger.log(
-        '  - WHY: DRY_RUN is enabled, so no threads were actually archived.'
-      );
-    }
-
-    AppLogger.log(`- Threads Skipped: ${skippedCount}`);
-    if (skippedCount === 0) {
-      AppLogger.log(
-        '  - WHY: No threads were skipped by safety checks or rule conflicts.'
-      );
-    }
-
-    AppLogger.log(`- Threads Failed: ${errorCount || 0}`);
-    if ((errorCount || 0) === 0) {
-      AppLogger.log('  - WHY: No thread processing errors occurred.');
-    }
-    AppLogger.log('');
-    AppLogger.log(`- Total Runtime: ${totalRuntime} seconds.`);
-    AppLogger.log(`- Dry Run Mode: ${CONFIG.EXECUTION.DRY_RUN}`);
-    AppLogger.log('=====================================');
 
     // Perform housekeeping by removing any unused labels
     _cleanupEmptyLabels();

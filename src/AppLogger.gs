@@ -25,7 +25,30 @@ const AppLogger = {
    * @param {string} message The message to log.
    */
   log(message) {
-    this._write('info', `[INFO] ${message}`);
+    this._write('info', `ℹ️ ${message}`);
+  },
+
+  /**
+   * Logs a compact summary line for batch activity.
+   * @param {string} message The summary text to log.
+   */
+  summary(message) {
+    this._write('info', `📊 ${message}`);
+  },
+
+  /**
+   * Logs a simple table-like summary block.
+   * @param {string} title The title of the summary block.
+   * @param {Array<Array<string|number|boolean>>} rows Key/value rows.
+   */
+  table(title, rows) {
+    this._write('info', '');
+    this._write('info', `=== ${title} ===`);
+    rows.forEach(([label, value]) => {
+      const paddedLabel = String(label).padEnd(12, ' ');
+      this._write('info', `${paddedLabel}: ${value}`);
+    });
+    this._write('info', '================');
   },
 
   /**
