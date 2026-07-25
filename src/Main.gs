@@ -196,41 +196,38 @@ function gmailCleanup() {
       const processedInBatch =
         (stats.processedCount || 0) - (statsBeforeBatch.processedCount || 0);
       if (processedInBatch > 0) {
-        const summaryParts = [`Processed: ${processedInBatch}`];
+        const summaryParts = [`processed : ${processedInBatch}`];
 
         // Trashed Summary
         const trashedInBatch =
           (stats.trashedCount || 0) - (statsBeforeBatch.trashedCount || 0);
         if (trashedInBatch > 0) {
-          summaryParts.push(`Trash: ${trashedInBatch}`);
+          summaryParts.push(`Trash : ${trashedInBatch}`);
         }
 
         // Archived Summary
         const archivedInBatch =
           (stats.archivedCount || 0) - (statsBeforeBatch.archivedCount || 0);
         if (archivedInBatch > 0) {
-          summaryParts.push(`Archive: ${archivedInBatch}`);
+          summaryParts.push(`Archive : ${archivedInBatch}`);
         }
 
-        // Labeled Summary (Total and Per-Label)
+        // Labeled Summary (Per-Label only)
         const labeledInBatch =
           (stats.labeledCount || 0) - (statsBeforeBatch.labeledCount || 0);
         if (labeledInBatch > 0) {
-          summaryParts.push(`Labeled: ${labeledInBatch}`);
           const labeledByLabelBefore = statsBeforeBatch.labeledByLabel || {};
           for (const label in stats.labeledByLabel) {
             const countAfter = stats.labeledByLabel[label];
             const countBefore = labeledByLabelBefore[label] || 0;
             const delta = countAfter - countBefore;
             if (delta > 0) {
-              summaryParts.push(`${label}: ${delta}`);
+              summaryParts.push(`${label} : ${delta}`);
             }
           }
         }
 
-        AppLogger.log(
-          `Batch Summary (${batchDuration.toFixed(2)}s) -> ${summaryParts.join(' | ')}`
-        );
+        AppLogger.log(summaryParts.join(' | '));
       } else if (result.processedIds.length > 0) {
         // This case can happen if threads were fetched but already processed in a previous run.
         AppLogger.log(

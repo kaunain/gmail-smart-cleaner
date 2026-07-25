@@ -4,19 +4,6 @@
 
 const CleanupService = {
   /**
-   * Processes a batch of GmailThread objects, applying classification and cleanup rules.
-   * This is a legacy function; the main flow now uses processThread.
-   *
-   * @param {GoogleAppsScript.Gmail.GmailThread[]} threads Threads to process.
-   * @param {Object} stats Mutable stats object.
-   */
-  processThreads(threads, stats) {
-    for (const thread of threads) {
-      this.processThread(thread, stats);
-    }
-  },
-
-  /**
    * Processes a single GmailThread, applying all classification and cleanup rules.
    * @param {GoogleAppsScript.Gmail.GmailThread} thread The thread to process.
    * @param {Object} stats Mutable stats object to update.
