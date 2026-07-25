@@ -173,6 +173,10 @@ function gmailCleanup() {
     // Process threads in batches to avoid exceeding API quotas and memory limits.
     let pageToken = null;
     do {
+      // Capture a snapshot of stats before processing the batch to calculate deltas.
+      const statsBeforeBatch = JSON.parse(JSON.stringify(stats));
+      const batchStartTime = new Date();
+
       const result = GmailUtils.searchAndProcessBatch(
         searchQuery,
         processedThreadIds,
@@ -202,6 +206,52 @@ function gmailCleanup() {
       // Update state with the IDs processed in this batch.
       processedThreadIds.push(...result.processedIds);
       pageToken = result.nextPageToken;
+
+      // --- Log a summary for the completed batch ---
+      const batchDuration = (new Date() - batchStartTime) / 1000;
+      const processedInBatch =
+        stats.processedCount - statsBeforeBatch.processedCount;
+      if (processedInBatch > 0) {
+        AppLogger.log(`--- Batch Summary ---`);
+        AppLogger.log(
+          `  - Threads Processed in this Batch: ${processedInBatch}`
+        );
+        AppLogger.log(`  - Batch Runtime: ${batchDuration.toFixed(2)} seconds`);
+
+        const labeledInBatch =
+          (stats.labeledCount || 0) - (statsBeforeBatch.labeledCount || 0);
+        if (labeledInBatch > 0) {
+          AppLogger.log(`  - Labeled: ${labeledInBatch}`);
+          const labeledByLabelBefore = statsBeforeBatch.labeledByLabel || {};
+          for (const label in stats.labeledByLabel) {
+            const countAfter = stats.labeledByLabel[label];
+            const countBefore = labeledByLabelBefore[label] || 0;
+            if (countAfter > countBefore) {
+              AppLogger.log(
+                `    - Applied "${label}": ${countAfter - countBefore} time(s)`
+              );
+            }
+          }
+        }
+
+        const trashedInBatch =
+          (stats.trashedCount || 0) - (statsBeforeBatch.trashedCount || 0);
+        if (trashedInBatch > 0) {
+          AppLogger.log(`  - Trashed: ${trashedInBatch}`);
+        }
+
+        const archivedInBatch =
+          (stats.archivedCount || 0) - (statsBeforeBatch.archivedCount || 0);
+        if (archivedInBatch > 0) {
+          AppLogger.log(`  - Archived: ${archivedInBatch}`);
+        }
+        AppLogger.log(`---------------------`);
+      } else if (result.processedIds.length > 0) {
+        // This case can happen if threads were fetched but already processed in a previous run.
+        AppLogger.log(
+          'Batch processed, but no new actions were taken on threads.'
+        );
+      }
 
       // Check if we have reached the processing limit
       if (
