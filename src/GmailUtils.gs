@@ -36,13 +36,23 @@ const GmailUtils = (function () {
     pageToken,
     processFn
   ) {
-    const { BATCH_SIZE } = CONFIG.EXECUTION;
+    const { BATCH_SIZE, MAX_THREADS_TO_PROCESS } = CONFIG.EXECUTION;
     const processedSet = new Set(processedThreadIds);
     const processedInThisBatch = [];
 
+    let batchFetchSize = BATCH_SIZE;
+    // If MAX_THREADS_TO_PROCESS is set, calculate how many more threads we can process.
+    if (MAX_THREADS_TO_PROCESS > 0) {
+      const remaining = MAX_THREADS_TO_PROCESS - processedSet.size;
+      // Request only the remaining number of threads if it's less than the standard batch size.
+      if (remaining < BATCH_SIZE) {
+        batchFetchSize = remaining > 0 ? remaining : 0;
+      }
+    }
+
     const response = Gmail.Users.Threads.list('me', {
       q: query,
-      maxResults: BATCH_SIZE,
+      maxResults: batchFetchSize,
       pageToken: pageToken,
     });
 
