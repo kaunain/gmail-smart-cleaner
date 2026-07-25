@@ -203,6 +203,18 @@ function gmailCleanup() {
       processedThreadIds.push(...result.processedIds);
       pageToken = result.nextPageToken;
 
+      // Check if we have reached the processing limit
+      if (
+        CONFIG.EXECUTION.MAX_THREADS_TO_PROCESS > 0 &&
+        stats.processedCount >= CONFIG.EXECUTION.MAX_THREADS_TO_PROCESS
+      ) {
+        AppLogger.log(
+          `Reached MAX_THREADS_TO_PROCESS limit of ${CONFIG.EXECUTION.MAX_THREADS_TO_PROCESS}. Pausing execution.`
+        );
+        // Setting pageToken to null will stop the do-while loop.
+        pageToken = null;
+      }
+
       // Check for timeout after each batch.
       if (Utils.isTimeRunningOut()) {
         AppLogger.log(
@@ -266,15 +278,23 @@ function gmailCleanup() {
 
     AppLogger.log('====== Final Execution Summary ======');
     AppLogger.log(`- Threads Processed: ${processedCount}`);
-    AppLogger.log(`- Threads Labeled: ${labeledCount}`);
-    if (labeledCount === 0) {
+    AppLogger.log(`- Total Threads Labeled: ${labeledCount}`);
+    if (labeledCount > 0 && stats.labeledByLabel) {
+      Object.entries(stats.labeledByLabel).forEach(([label, count]) => {
+        AppLogger.log(`  - Applied Label "${label}": ${count} time(s)`);
+      });
+    } else {
       AppLogger.log(
         '  - WHY: No threads matched any CLASSIFICATION_RULES, or all matched threads already had the required labels.'
       );
     }
 
-    AppLogger.log(`- Threads Selected For Trash: ${trashedCount}`);
-    if (trashedCount === 0) {
+    AppLogger.log(`- Total Threads Selected For Trash: ${trashedCount}`);
+    if (trashedCount > 0 && stats.trashedByRule) {
+      Object.entries(stats.trashedByRule).forEach(([rule, count]) => {
+        AppLogger.log(`  - Matched Trash Rule "${rule}": ${count} time(s)`);
+      });
+    } else {
       AppLogger.log(
         '  - WHY: No threads met the criteria for any TRASH_RULES (e.g., wrong label, not old enough), or all that did were protected by safety rules.'
       );

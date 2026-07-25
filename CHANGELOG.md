@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- The script now correctly respects the `MAX_THREADS_TO_PROCESS` configuration value, stopping execution once the limit is reached.
+
+### Changed
+
+- The final execution summary log is now significantly more detailed, providing a breakdown of which labels were applied and which trash rules were matched.
+
 ## [1.2.0] - 2024-07-31
 
 ### Added

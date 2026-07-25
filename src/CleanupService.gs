@@ -28,7 +28,6 @@ const CleanupService = {
       const threadId = thread.getId();
       const subject = thread.getFirstMessageSubject() || '(No Subject)';
       const lastMessageDate = thread.getLastMessageDate();
-      const ageInDays = (new Date() - lastMessageDate) / (1000 * 60 * 60 * 24);
 
       // 1. Classify thread to determine labels and metadata
       const classification = RuleEngine.classifyThread(thread);
@@ -64,6 +63,13 @@ const CleanupService = {
                 thread.moveToTrash();
               }
               stats.trashedCount++;
+              // Enhance stats for detailed logging
+              const ruleKey = `label: ${rule.label}, days: ${rule.days}`;
+              if (!stats.trashedByRule) {
+                stats.trashedByRule = {};
+              }
+              stats.trashedByRule[ruleKey] =
+                (stats.trashedByRule[ruleKey] || 0) + 1;
               actionTaken = true;
               break; // Action taken, no need to check other trash/archive rules
             } else {
@@ -111,6 +117,12 @@ const CleanupService = {
               }
             }
             labelsApplied++;
+            // Enhance stats for detailed logging
+            if (!stats.labeledByLabel) {
+              stats.labeledByLabel = {};
+            }
+            stats.labeledByLabel[labelName] =
+              (stats.labeledByLabel[labelName] || 0) + 1;
           }
         }
         if (labelsApplied > 0) {
