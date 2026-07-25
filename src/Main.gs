@@ -162,28 +162,58 @@ function gmailCleanup() {
   const searchQuery = GmailUtils.buildSearchQuery();
 
   try {
-    // Fetch all threads, excluding those already processed in previous runs.
-    const allThreads = GmailUtils.searchThreads(
-      searchQuery,
-      processedThreadIds
-    );
-
-    if (allThreads.length === 0) {
-      AppLogger.log('No new threads found to process.');
-      StateService.saveState(runState, [], true); // Mark as complete
-      return;
-    }
-
-    // Sort threads to process oldest first, which is generally safer.
-    const sortedThreads = GmailUtils.sortThreadsByDate(allThreads, 'asc');
-
     // Fetch the Priority label once outside the loop for performance.
     const priorityLabelName = 'Priority';
     const priorityLabel = GmailApp.getUserLabelByName(priorityLabelName);
+
     // Fetch all user labels once and create a map for efficient lookups.
     const userLabels = GmailApp.getUserLabels();
     const labelMap = new Map(userLabels.map((l) => [l.getName(), l]));
 
+    // Process threads in batches to avoid exceeding API quotas and memory limits.
+    let pageToken = null;
+    do {
+      const result = GmailUtils.searchAndProcessBatch(
+        searchQuery,
+        processedThreadIds,
+        pageToken,
+        (thread) => {
+          // This is a "callback" function that processes a single thread.
+          // --- Pre-processing for Important Emails ---
+          if (priorityLabel) {
+            const hasPriorityLabel = thread
+              .getLabels()
+              .some((l) => l.getName() === priorityLabelName);
+            if (thread.isImportant() && !hasPriorityLabel) {
+              AppLogger.log(
+                `Gmail-marked important thread found: "${thread.getFirstMessageSubject()}". Applying '${priorityLabelName}' label.`
+              );
+              if (!CONFIG.EXECUTION.DRY_RUN) {
+                thread.addLabel(priorityLabel);
+                stats.labeledCount++;
+              }
+            }
+          }
+          // Process the thread using CleanupService
+          CleanupService.processThread(thread, stats, labelMap);
+        }
+      );
+
+      // Update state with the IDs processed in this batch.
+      processedThreadIds.push(...result.processedIds);
+      pageToken = result.nextPageToken;
+
+      // Check for timeout after each batch.
+      if (Utils.isTimeRunningOut()) {
+        AppLogger.log(
+          'Execution time limit is approaching. Saving state and pausing.'
+        );
+        StateService.saveState(runState, result.processedIds, false);
+        return; // Exit function to be resumed later
+      }
+    } while (pageToken);
+
+    /*
     const processedInThisRun = [];
 
     for (const thread of sortedThreads) {
@@ -217,9 +247,10 @@ function gmailCleanup() {
         return; // Exit function to be resumed later
       }
     }
+    */
 
     // If the loop completes, all threads have been processed.
-    StateService.saveState(runState, processedInThisRun, true); // Mark as complete
+    StateService.saveState(runState, [], true); // Mark as complete
 
     AppLogger.log('====== Gmail Cleanup Complete ======');
 

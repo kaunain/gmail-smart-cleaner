@@ -54,6 +54,14 @@ const RuleEngine = (function () {
     const priorityRules = classificationRules.filter((rule) => rule.isPriority);
     const normalRules = classificationRules.filter((rule) => !rule.isPriority);
 
+    // Helper to safely check criteria, whether it's a string or an array of strings.
+    const checkCriterion = (value, criterion) => {
+      if (!criterion) return false;
+      // Ensure criterion is an array for consistent processing.
+      const criteriaArray = Array.isArray(criterion) ? criterion : [criterion];
+      return criteriaArray.some((c) => value.includes(c.toLowerCase()));
+    };
+
     // Function to check if a thread matches a rule's criteria
     const checkMatch = (rule) => {
       if (!rule.criteria) return false;
@@ -64,25 +72,12 @@ const RuleEngine = (function () {
         body: bodyCrit,
       } = rule.criteria;
 
-      if (fromCrit && fromCrit.some((f) => from.includes(f.toLowerCase()))) {
-        return true;
-      }
-      if (
-        domainCrit &&
-        domainCrit.some((d) => domain.includes(d.toLowerCase()))
-      ) {
-        return true;
-      }
-      if (
-        subjectCrit &&
-        subjectCrit.some((s) => subject.includes(s.toLowerCase()))
-      ) {
-        return true;
-      }
-      if (bodyCrit && bodyCrit.some((b) => body.includes(b.toLowerCase()))) {
-        return true;
-      }
-      return false;
+      return (
+        checkCriterion(from, fromCrit) ||
+        checkCriterion(domain, domainCrit) ||
+        checkCriterion(subject, subjectCrit) ||
+        checkCriterion(body, bodyCrit)
+      );
     };
 
     // Process priority rules first. If a match is found, stop and return.

@@ -10,7 +10,7 @@ const GmailUtils = (function () {
    * @returns {string} The Gmail search query.
    */
   function buildSearchQuery() {
-    const { SEARCH_OLDER_THAN_DAYS } = Config.EXECUTION;
+    const { SEARCH_OLDER_THAN_DAYS } = CONFIG.EXECUTION;
     let query = 'in:inbox';
 
     if (SEARCH_OLDER_THAN_DAYS > 0) {
@@ -22,54 +22,47 @@ const GmailUtils = (function () {
   }
 
   /**
-   * Searches for Gmail threads matching the query, excluding already processed ones.
+   * Searches for a single batch of threads and processes them using a callback.
+   * This is a more memory and API-efficient approach than fetching all threads first.
    * @param {string} query The Gmail search query.
    * @param {string[]} processedThreadIds An array of thread IDs to exclude from the search.
-   * @returns {GoogleAppsScript.Gmail.GmailThread[]} The found threads.
+   * @param {string | null} pageToken The token for the next page of results.
+   * @param {function(GoogleAppsScript.Gmail.GmailThread): void} processFn The function to call for each new thread.
+   * @returns {{processedIds: string[], nextPageToken: (string | null)}}
    */
-  function searchThreads(query, processedThreadIds) {
-    const { BATCH_SIZE, MAX_THREADS_TO_PROCESS } = Config.EXECUTION;
+  function searchAndProcessBatch(
+    query,
+    processedThreadIds,
+    pageToken,
+    processFn
+  ) {
+    const { BATCH_SIZE } = CONFIG.EXECUTION;
     const processedSet = new Set(processedThreadIds);
-    const allThreads = [];
-    let pageToken = null;
+    const processedInThisBatch = [];
 
-    Logger.log(`Searching for threads with query: "${query}"`);
+    const response = Gmail.Users.Threads.list('me', {
+      q: query,
+      maxResults: BATCH_SIZE,
+      pageToken: pageToken,
+    });
 
-    do {
-      const response = Gmail.Users.Threads.list('me', {
-        q: query,
-        maxResults: BATCH_SIZE,
-        pageToken: pageToken,
-      });
-
-      if (response.threads && response.threads.length > 0) {
-        for (const threadInfo of response.threads) {
-          if (!processedSet.has(threadInfo.id)) {
-            const thread = GmailApp.getThreadById(threadInfo.id);
-            if (thread) {
-              allThreads.push(thread);
-            }
+    if (response.threads && response.threads.length > 0) {
+      Logger.log(`Fetched a batch of ${response.threads.length} threads.`);
+      for (const threadInfo of response.threads) {
+        if (!processedSet.has(threadInfo.id)) {
+          const thread = GmailApp.getThreadById(threadInfo.id);
+          if (thread) {
+            processFn(thread);
+            processedInThisBatch.push(thread.id);
           }
         }
       }
+    }
 
-      pageToken = response.nextPageToken;
-
-      if (
-        MAX_THREADS_TO_PROCESS > 0 &&
-        allThreads.length >= MAX_THREADS_TO_PROCESS
-      ) {
-        break;
-      }
-    } while (pageToken);
-
-    const finalThreads =
-      MAX_THREADS_TO_PROCESS > 0
-        ? allThreads.slice(0, MAX_THREADS_TO_PROCESS)
-        : allThreads;
-
-    Logger.log(`Found ${finalThreads.length} new threads to process.`);
-    return finalThreads;
+    return {
+      processedIds: processedInThisBatch,
+      nextPageToken: response.nextPageToken || null,
+    };
   }
 
   /**
@@ -88,7 +81,7 @@ const GmailUtils = (function () {
 
   return {
     buildSearchQuery: buildSearchQuery,
-    searchThreads: searchThreads,
+    searchAndProcessBatch: searchAndProcessBatch,
     sortThreadsByDate: sortThreadsByDate,
   };
 })();
