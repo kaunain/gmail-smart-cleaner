@@ -20,14 +20,36 @@ const CleanupService = {
    * Processes a single GmailThread, applying all classification and cleanup rules.
    * @param {GoogleAppsScript.Gmail.GmailThread} thread The thread to process.
    * @param {Object} stats Mutable stats object to update.
-   * @param {Map<string, GoogleAppsScript.Gmail.GmailLabel>} labelMap A map of all user labels for efficient lookup.
+   * @param {Map<string, GoogleAppsScript.Gmail.GmailLabel>} labelMap A map of all user labels.
+   * @param {GoogleAppsScript.Gmail.GmailLabel | null} priorityLabel The pre-fetched 'Priority' label object.
    */
-  processThread(thread, stats, labelMap) {
+  processThread(thread, stats, labelMap, priorityLabel) {
     try {
       stats.processedCount++;
       const threadId = thread.getId();
       const subject = thread.getFirstMessageSubject() || '(No Subject)';
       const lastMessageDate = thread.getLastMessageDate();
+
+      const existingThreadLabels = thread
+        .getLabels()
+        .map((l) => l.getName().toLowerCase());
+      let labelsAppliedInThisRun = 0;
+
+      // --- Pre-processing for Important Emails ---
+      if (priorityLabel && thread.isImportant()) {
+        const priorityLabelName = priorityLabel.getName();
+        if (!existingThreadLabels.includes(priorityLabelName.toLowerCase())) {
+          AppLogger.log(
+            `Gmail-marked important thread found: "${subject}". Applying '${priorityLabelName}' label.`
+          );
+          if (!CONFIG.EXECUTION.DRY_RUN) {
+            thread.addLabel(priorityLabel);
+          }
+          labelsAppliedInThisRun++;
+          stats.labeledByLabel[priorityLabelName] =
+            (stats.labeledByLabel[priorityLabelName] || 0) + 1;
+        }
+      }
 
       // 1. Classify thread to determine labels and metadata
       const classification = RuleEngine.classifyThread(thread);
@@ -36,9 +58,6 @@ const CleanupService = {
       const domain = classification.domain || '';
 
       // Build a combined set of existing and new labels for rule evaluation
-      const existingThreadLabels = thread
-        .getLabels()
-        .map((l) => l.getName().toLowerCase());
       const allLabels = new Set([
         ...existingThreadLabels,
         ...newLabels.map((l) => l.toLowerCase()),
@@ -106,7 +125,6 @@ const CleanupService = {
 
       // 4. Apply new labels (if any were identified)
       if (newLabels.length > 0) {
-        let labelsApplied = 0;
         for (const labelName of newLabels) {
           // Check if the thread already has this label to avoid redundant API calls
           if (!existingThreadLabels.includes(labelName.toLowerCase())) {
@@ -116,7 +134,7 @@ const CleanupService = {
                 thread.addLabel(label);
               }
             }
-            labelsApplied++;
+            labelsAppliedInThisRun++;
             // Enhance stats for detailed logging
             if (!stats.labeledByLabel) {
               stats.labeledByLabel = {};
@@ -125,9 +143,10 @@ const CleanupService = {
               (stats.labeledByLabel[labelName] || 0) + 1;
           }
         }
-        if (labelsApplied > 0) {
-          stats.labeledCount += labelsApplied;
-        }
+      }
+
+      if (labelsAppliedInThisRun > 0) {
+        stats.labeledCount++; // Increment once if any labels were applied to this thread.
       }
 
       // If no action was taken at all, it's implicitly "kept" but not "skipped"
@@ -212,10 +231,3 @@ const CleanupService = {
     return true;
   },
 };
-
-/*
-  NOTE: The original processThreads function is being removed as its logic
-  has been refactored into the new processThread function, which handles
-  a single thread at a time. The new processThreads function above now
-  simply delegates to the new single-thread processor.
-*/
