@@ -7,13 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+### Added
 
-- The script now correctly respects the `MAX_THREADS_TO_PROCESS` configuration value, stopping execution once the limit is reached.
+- **Strict 2-Step Deletion Workflow**: `gmailCleanup()` now strictly handles email classification and applies the custom `Delete` label to candidate threads without calling Gmail Trash APIs.
+- **`trashDeleteLabeledEmails()`**: New separate top-level function that scans `Delete`-labeled threads, executes a 2nd-pass safety validation, and moves approved threads to Trash.
+- **Granular DRY_RUN Configuration**: Separated `DRY_RUN` into `CLASSIFICATION` and `TRASH` boolean options in `Config.gs`.
 
 ### Changed
 
-- The final execution summary log is now significantly more detailed, providing a breakdown of which labels were applied and which trash rules were matched.
+- Updated end-of-run execution summary tables and breakdown logs to accurately track `Delete candidates`, `Archived`, `Labeled`, `Safety blocked`, and `No action taken` metrics.
+- Formatted `AppLogger.table` with dynamic column padding for clean log output alignment in Apps Script editor.
+
+### Fixed
+
+- Enforced `MAX_THREADS_TO_PROCESS` configuration limit in `trashDeleteLabeledEmails()` so that batch trashing strictly respects the user-defined limit.
+- Corrected "No Action" calculation in `gmailCleanup()` and "Eligible for Trash" calculation in `trashDeleteLabeledEmails()` for real (non-dry-run) executions.
 
 ## [1.2.0] - 2024-07-31
 

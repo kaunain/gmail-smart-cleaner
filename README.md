@@ -19,13 +19,39 @@ A production-ready Google Apps Script to automatically organize, label, and clea
 ## ✨ Features
 
 - **🤖 Smart Organization**: Automatically classifies and labels emails using a powerful rule engine.
-- **🗑️ Automated Cleanup**: Intelligently trashes ephemeral emails like OTPs and old promotions.
+- **🛡️ 2-Step Safe Deletion**: `gmailCleanup()` marks unwanted emails with a custom `Delete` label without trashing. `trashDeleteLabeledEmails()` performs a 2nd safety check and moves approved emails to Trash.
 - **🗄️ Intelligent Archiving**: Keeps your inbox clean by archiving read newsletters and notifications.
-- **🛡️ Safety First**: Protects important, starred, or unread emails with non-negotiable safety checks.
-- **💪 Resilient by Design**: Handles massive inboxes by gracefully managing Google's execution time limits.
+- **🔒 Non-Negotiable Safety**: Protects important, starred, or unread emails with dual safety checks (`SAFE_SENDERS`, `SAFE_DOMAINS`, `PROTECTED_LABELS`).
+- **💪 Resilient & Limit Aware**: Respects `MAX_THREADS_TO_PROCESS` limits and handles execution timeouts gracefully.
 - **📊 Health & Reporting**: Includes an Execution Dashboard, automated email reports, and error notifications.
 - **📎 Attachment Management**: Finds and labels emails with large attachments for manual review.
-- **⚙️ Developer Focused**: CI/CD-ready, built for VS Code, and fully configurable.
+- **⚙️ Developer Focused**: CI/CD-ready, built for VS Code, and fully configurable with separate dry run flags.
+
+---
+
+## 🏗️ 2-Step Deletion Workflow Architecture
+
+Gmail Smart Cleaner uses a strict 2-step process to ensure no email is ever accidentally deleted:
+
+```
+[ Step 1: gmailCleanup() ]
+       │
+       ├── Searches inbox and runs RuleEngine classification
+       ├── Applies category labels (OTP, Promotions, Work, Finance, etc.)
+       ├── Identifies cleanup candidates matching TRASH_RULES
+       └── Applies custom 'Delete' label  --->  [ STOP ] (Never moves to Trash!)
+                                                   │
+                                            (User Reviews in Gmail)
+                                                   │
+[ Step 2: trashDeleteLabeledEmails() ] <───────────┘
+       │
+       ├── Scans threads labeled 'Delete'
+       ├── Runs SECOND safety validation (Starred, Important, Safe Senders/Domains/Labels)
+       └── Moves approved threads to Trash
+```
+
+1. **Step 1 (`gmailCleanup()`):** Runs automatically on schedule. It classifies emails and applies normal labels. Any email matching cleanup rules (e.g. OTPs older than 7 days, promotions older than 7 days) receives the `Delete` label. **It will NEVER call Gmail Trash APIs directly.**
+2. **Step 2 (`trashDeleteLabeledEmails()`):** Run manually whenever you want to clear your review queue. It re-evaluates all safety checks on `Delete`-labeled threads and moves eligible emails to Trash.
 
 ---
 
@@ -161,12 +187,19 @@ Now, every time you `git push` to your `main` branch, the GitHub Action will aut
 
 All settings are centralized in `src/Config.gs`.
 
-- `DRY_RUN`: Set to `true` to test rules without making any changes.
-- `BATCH_SIZE`: Number of emails to process at once.
-- `TRASH_RULES`: Define which labels lead to deletion and after how many days.
-- `CLASSIFICATION_RULES`: The core logic for labeling emails based on sender, subject, and more.
-- If a thread matches no configured classification rule, the engine now applies the explicit `Delete` label by default, so unmatched non-important threads are treated as delete candidates.
-- `SAFE_SENDERS` / `SAFE_DOMAINS`: Whitelist important senders and domains to protect them from deletion.
+- `DRY_RUN`: Granular dry run flags:
+  ```javascript
+  DRY_RUN: {
+    CLASSIFICATION: true, // If true, labeling and archiving in gmailCleanup() is logged only
+    TRASH: true,          // If true, trashDeleteLabeledEmails() only logs what it would trash
+  }
+  ```
+- `MAX_THREADS_TO_PROCESS`: Maximum number of threads to process in classification or move to trash in a single run (e.g., set to `10` to process/trash at most 10 emails per run, or `0` for unlimited).
+- `BATCH_SIZE`: Number of emails to process at once per API batch.
+- `TRASH_RULES`: Define which labels lead to deletion candidates and after how many days (e.g. `{ label: 'OTP', days: 7 }`).
+- `CLASSIFICATION_RULES`: The core logic for labeling emails based on sender, subject, domain, and body keywords.
+  - If a thread matches no configured classification rule, the engine applies the explicit `Delete` label by default so unmatched non-important threads are marked for review.
+- `SAFE_SENDERS` / `SAFE_DOMAINS` / `PROTECTED_LABELS`: Whitelist important senders, domains, and labels to protect them from deletion.
 
 ---
 
