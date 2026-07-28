@@ -459,6 +459,9 @@ const CleanupService = {
           `[DRY RUN] Would move ${stats.eligibleForTrashCount} threads to Trash.`
         );
       }
+
+      // Housekeeping: remove empty script-managed labels after trashing
+      LabelService.cleanupEmptyLabels(Utils.isTrashDryRun());
     } catch (e) {
       stats.errorsCount++;
       AppLogger.error(

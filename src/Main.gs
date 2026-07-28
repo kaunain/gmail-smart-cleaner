@@ -449,49 +449,7 @@ function cleanupAttachments() {
  * @private
  */
 function _cleanupEmptyLabels() {
-  if (Utils.isClassificationDryRun()) {
-    AppLogger.log('[DRY RUN] Skipping cleanup of empty labels.');
-    return;
-  }
-
-  AppLogger.log('====== Starting Empty Label Cleanup ======');
-  let removedCount = 0;
-
-  const userLabels = GmailApp.getUserLabels();
-  userLabels.forEach((label) => {
-    const labelName = label.getName();
-
-    try {
-      const escapedLabelName = labelName.replace(/"/g, '\\"');
-      const searchQuery = `label:"${escapedLabelName}" -in:trash -in:spam`;
-      // Use the more efficient advanced service to check for existence, not count.
-      const response = Gmail.Users.Threads.list('me', {
-        q: searchQuery,
-        maxResults: 1,
-      });
-
-      if (!response.threads || response.threads.length === 0) {
-        AppLogger.log(`Label "${labelName}" is empty. Deleting it.`);
-        label.deleteLabel();
-        removedCount++;
-      } else if (CONFIG.EXECUTION.DEBUG) {
-        AppLogger.debug(
-          `Skipping label "${labelName}" because it still has ${response.threads.length > 0 ? 'at least 1' : 'unknown'} non-trashed/non-spam thread(s).`
-        );
-      }
-    } catch (e) {
-      AppLogger.warn(
-        `Could not process label "${labelName}" for cleanup. It might have been deleted already. Error: ${e.message}`
-      );
-    }
-  });
-
-  if (removedCount > 0) {
-    AppLogger.log(`Removed ${removedCount} empty label(s).`);
-  } else {
-    AppLogger.log('No empty labels found to remove.');
-  }
-  AppLogger.log('====== Empty Label Cleanup Complete ======');
+  LabelService.cleanupEmptyLabels(Utils.isClassificationDryRun());
 }
 
 /**
