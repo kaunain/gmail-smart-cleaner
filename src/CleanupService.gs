@@ -265,11 +265,31 @@ const CleanupService = {
     try {
       const searchQuery = 'label:Delete -in:trash';
       let pageToken = null;
+      const maxLimit = CONFIG.EXECUTION.MAX_THREADS_TO_PROCESS || 0;
 
       do {
+        const currentCount = Utils.isTrashDryRun()
+          ? stats.eligibleForTrashCount
+          : stats.trashedCount;
+
+        if (maxLimit > 0 && currentCount >= maxLimit) {
+          AppLogger.log(
+            `Reached MAX_THREADS_TO_PROCESS limit of ${maxLimit}. Stopping trash execution.`
+          );
+          break;
+        }
+
+        let fetchSize = CONFIG.EXECUTION.BATCH_SIZE;
+        if (maxLimit > 0) {
+          const remaining = maxLimit - currentCount;
+          if (remaining < fetchSize) {
+            fetchSize = remaining > 0 ? remaining : 1;
+          }
+        }
+
         const listOptions = {
           q: searchQuery,
-          maxResults: CONFIG.EXECUTION.BATCH_SIZE,
+          maxResults: fetchSize,
           pageToken: pageToken,
         };
 
@@ -282,6 +302,19 @@ const CleanupService = {
           const eligibleThreadsInBatch = [];
 
           for (const threadInfo of threads) {
+            const batchCount =
+              (Utils.isTrashDryRun()
+                ? stats.eligibleForTrashCount
+                : stats.trashedCount) + eligibleThreadsInBatch.length;
+
+            if (maxLimit > 0 && batchCount >= maxLimit) {
+              AppLogger.log(
+                `Reached MAX_THREADS_TO_PROCESS limit of ${maxLimit} for trash operations.`
+              );
+              pageToken = null;
+              break;
+            }
+
             try {
               const thread = GmailApp.getThreadById(threadInfo.id);
               if (!thread) continue;
@@ -322,8 +355,10 @@ const CleanupService = {
                 );
                 stats.protectedSkippedCount++;
               } else {
-                stats.eligibleForTrashCount++;
                 eligibleThreadsInBatch.push(thread);
+                if (Utils.isTrashDryRun()) {
+                  stats.eligibleForTrashCount++;
+                }
               }
             } catch (threadError) {
               stats.errorsCount++;
@@ -349,6 +384,16 @@ const CleanupService = {
               );
             }
           }
+        }
+
+        const totalCount = Utils.isTrashDryRun()
+          ? stats.eligibleForTrashCount
+          : stats.trashedCount;
+        if (maxLimit > 0 && totalCount >= maxLimit) {
+          AppLogger.log(
+            `Reached MAX_THREADS_TO_PROCESS limit of ${maxLimit}. Stopping trash execution.`
+          );
+          break;
         }
 
         if (Utils.isTimeRunningOut()) {
