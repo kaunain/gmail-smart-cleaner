@@ -281,22 +281,31 @@ function gmailCleanup() {
     } = stats;
 
     const noAction = noActionCount || 0;
+    const labeledOnly = labeledOnlyCount || 0;
 
-    AppLogger.table('Cleanup Summary', [
-      ['Reviewed', processedCount],
-      ['Classified', classifiedCount || 0],
-      ['Delete candidates', deleteCandidatesCount || 0],
-      ['Archived', archivedCount || 0],
-      ['Labeled (total)', labeledCount || 0],
-      ['Safety blocked', skippedCount || 0],
-      ['No action taken', noAction],
-      ['Failed', errorCount || 0],
+    AppLogger.table('Cleanup Execution Summary', [
+      ['Reviewed Threads', processedCount],
+      ['--------------------', '----------'],
+      ['Delete Candidates', deleteCandidatesCount || 0],
+      ['Archived Threads', archivedCount || 0],
+      ['Category Labeled Only', labeledOnly],
+      ['Safety Blocked', skippedCount || 0],
+      ['No Action Taken', noAction],
+      ['--------------------', '----------'],
+      ['Classified (rules matched)', classifiedCount || 0],
+      ['Labels Applied (total)', labeledCount || 0],
+      ['Failed / Errors', errorCount || 0],
       ['Runtime', `${totalRuntime}s`],
       ['Classification Dry Run', Utils.isClassificationDryRun() ? 'Yes' : 'No'],
     ]);
 
     AppLogger.log(
-      `Breakdown → reviewed ${processedCount} | delete candidates ${deleteCandidatesCount || 0} | archived ${archivedCount || 0} | labeled only ${labeledOnlyCount || 0} | safety-blocked ${skippedCount || 0} | no action ${noAction}`
+      `Thread Outcome Breakdown (Sums to ${processedCount}): ` +
+        `Delete Candidates: ${deleteCandidatesCount || 0} | ` +
+        `Archived: ${archivedCount || 0} | ` +
+        `Category Labeled: ${labeledOnly} | ` +
+        `Safety Blocked: ${skippedCount || 0} | ` +
+        `No Action: ${noAction}`
     );
 
     if (labeledCount > 0 && stats.labeledByLabel) {

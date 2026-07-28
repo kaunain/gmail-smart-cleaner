@@ -126,7 +126,7 @@ const CleanupService = {
           );
           if (!isSafe) {
             newLabels.splice(deleteLabelIndex, 1);
-            if (!isSafetyBlocked) {
+            if (!isSafetyBlocked && !isArchived) {
               isSafetyBlocked = true;
               stats.skippedCount = (stats.skippedCount || 0) + 1;
             }
