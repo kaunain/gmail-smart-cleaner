@@ -112,6 +112,27 @@ const CleanupService = {
 
       // 4. Apply new labels (including Delete label if identified)
       if (newLabels.length > 0) {
+        // Safety guard: Ensure 'Delete' label is NEVER applied if thread is not safe to delete
+        const deleteLabelIndex = newLabels.findIndex(
+          (l) => l.toLowerCase() === 'delete'
+        );
+        if (deleteLabelIndex !== -1) {
+          const isSafe = this.isSafeToDelete(
+            thread,
+            subject,
+            [...allLabels],
+            from,
+            domain
+          );
+          if (!isSafe) {
+            newLabels.splice(deleteLabelIndex, 1);
+            if (!isSafetyBlocked) {
+              isSafetyBlocked = true;
+              stats.skippedCount = (stats.skippedCount || 0) + 1;
+            }
+          }
+        }
+
         for (const labelName of newLabels) {
           if (!existingThreadLabels.includes(labelName.toLowerCase())) {
             if (!Utils.isClassificationDryRun()) {
@@ -180,14 +201,14 @@ const CleanupService = {
       return { safe: false, reason: 'SKIPPED - Unread' };
     }
 
-    const safeSenders = (CONFIG.SAFETY.SAFE_SENDERS || []).map((e) =>
-      e.toLowerCase()
-    );
+    const safeSenders = (CONFIG.SAFETY.SAFE_SENDERS || [])
+      .map((e) => String(e).trim().toLowerCase())
+      .filter((e) => e.length > 0);
     const safeDomains = (CONFIG.SAFETY.SAFE_DOMAINS || []).map((d) =>
-      d.toLowerCase()
+      String(d).trim().toLowerCase()
     );
     const safeLabels = (CONFIG.SAFETY.PROTECTED_LABELS || []).map((l) =>
-      l.toLowerCase()
+      String(l).trim().toLowerCase()
     );
     const matchedSafeLabel = threadLabelNames.find((label) =>
       safeLabels.includes(label.toLowerCase())
@@ -199,9 +220,13 @@ const CleanupService = {
       return { safe: false, reason: 'SKIPPED - Protected label' };
     }
 
-    if (from && safeSenders.includes(from.toLowerCase())) {
+    const normFrom = (from || '').trim().toLowerCase();
+    const matchedSafeSender = safeSenders.find(
+      (s) => normFrom && normFrom.startsWith(s)
+    );
+    if (matchedSafeSender) {
       dlog(
-        `  > [SAFETY CHECK] Result: FALSE. Reason: Sender "${from}" is in SAFE_SENDERS.`
+        `  > [SAFETY CHECK] Result: FALSE. Reason: Sender "${from}" matches SAFE_SENDERS "${matchedSafeSender}".`
       );
       return { safe: false, reason: 'SKIPPED - Safe sender' };
     }

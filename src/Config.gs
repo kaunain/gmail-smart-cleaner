@@ -108,12 +108,13 @@ const CONFIG = {
   SAFETY: {
     /**
      * @type {string[]}
-     * A list of sender email addresses to protect. Emails from these senders
-     * will NEVER be moved to trash.
-     * Example: ['boss@example.com', 'important-client@example.com']
+     * A list of sender email addresses or username prefixes to protect. Emails
+     * from senders starting with any of these strings will NEVER receive the 'Delete'
+     * label or be moved to trash (e.g. 'kaunain' protects 'kaunain@gmail.com').
+     * Example: ['boss@example.com', 'kaunain', 'important-client@example.com']
      */
     SAFE_SENDERS: [
-      // Add your own important email addresses here.
+      // Add your own important email addresses or username prefixes here.
     ],
 
     /**
