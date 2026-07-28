@@ -275,29 +275,28 @@ function gmailCleanup() {
       deleteCandidatesCount,
       archivedCount,
       skippedCount,
+      noActionCount,
       errorCount,
     } = stats;
 
-    const remainingReviewedCount = Math.max(0, processedCount - skippedCount);
+    const noAction = noActionCount || 0;
 
     AppLogger.table('Cleanup Summary', [
       ['Reviewed', processedCount],
       ['Classified', classifiedCount || 0],
-      ['Safety blocked', skippedCount],
-      ['No action', remainingReviewedCount],
-      ['Labeled', labeledCount],
       ['Delete candidates', deleteCandidatesCount || 0],
-      ['Archive', archivedCount],
+      ['Archived', archivedCount || 0],
+      ['Labeled', labeledCount || 0],
+      ['Safety blocked', skippedCount || 0],
+      ['No action taken', noAction],
       ['Failed', errorCount || 0],
       ['Runtime', `${totalRuntime}s`],
       ['Classification Dry Run', Utils.isClassificationDryRun() ? 'Yes' : 'No'],
     ]);
 
-    if (skippedCount > 0 || remainingReviewedCount > 0) {
-      AppLogger.log(
-        `Breakdown → reviewed ${processedCount} | safety-blocked ${skippedCount} | no action ${remainingReviewedCount}`
-      );
-    }
+    AppLogger.log(
+      `Breakdown → reviewed ${processedCount} | delete candidates ${deleteCandidatesCount || 0} | archived ${archivedCount || 0} | safety-blocked ${skippedCount || 0} | no action ${noAction}`
+    );
 
     if (labeledCount > 0 && stats.labeledByLabel) {
       const labelSummary = Object.entries(stats.labeledByLabel)

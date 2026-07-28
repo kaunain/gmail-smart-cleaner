@@ -44,8 +44,12 @@ const AppLogger = {
   table(title, rows) {
     this._write('info', '');
     this._write('info', `=== ${title} ===`);
+    const maxLabelLen = Math.max(
+      ...rows.map(([label]) => String(label).length),
+      12
+    );
     rows.forEach(([label, value]) => {
-      const paddedLabel = String(label).padEnd(12, ' ');
+      const paddedLabel = String(label).padEnd(maxLabelLen + 2, ' ');
       this._write('info', `${paddedLabel}: ${value}`);
     });
     this._write('info', '================');

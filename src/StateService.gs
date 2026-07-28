@@ -34,6 +34,7 @@ const StateService = (function () {
         labeledCount: 0,
         deleteCandidatesCount: 0,
         skippedCount: 0,
+        noActionCount: 0,
         errorCount: 0,
         labeledByLabel: {},
       },

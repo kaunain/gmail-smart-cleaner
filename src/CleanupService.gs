@@ -55,6 +55,7 @@ const CleanupService = {
       ]);
 
       let isDeleteCandidate = false;
+      let isSafetyBlocked = false;
 
       // 2. Evaluate Trash / Delete candidate Rules
       const trashRules = CONFIG?.RULES?.TRASH_RULES || [];
@@ -78,6 +79,7 @@ const CleanupService = {
               break;
             } else {
               // Matched a cleanup rule but blocked by safety
+              isSafetyBlocked = true;
               stats.skippedCount = (stats.skippedCount || 0) + 1;
               break;
             }
@@ -85,6 +87,7 @@ const CleanupService = {
         }
       }
 
+      let isArchived = false;
       // 3. Evaluate Archive Rules (only if not candidate for delete)
       if (!isDeleteCandidate) {
         const archiveRules = CONFIG?.RULES?.ARCHIVE_RULES || [];
@@ -100,6 +103,7 @@ const CleanupService = {
                 thread.moveToArchive();
               }
               stats.archivedCount = (stats.archivedCount || 0) + 1;
+              isArchived = true;
               break;
             }
           }
@@ -128,6 +132,12 @@ const CleanupService = {
 
       if (labelsAppliedInThisRun > 0) {
         stats.labeledCount = (stats.labeledCount || 0) + 1;
+      }
+
+      const actionTaken =
+        isDeleteCandidate || isArchived || labelsAppliedInThisRun > 0;
+      if (!actionTaken && !isSafetyBlocked) {
+        stats.noActionCount = (stats.noActionCount || 0) + 1;
       }
     } catch (error) {
       stats.errorCount = (stats.errorCount || 0) + 1;
@@ -356,9 +366,7 @@ const CleanupService = {
                 stats.protectedSkippedCount++;
               } else {
                 eligibleThreadsInBatch.push(thread);
-                if (Utils.isTrashDryRun()) {
-                  stats.eligibleForTrashCount++;
-                }
+                stats.eligibleForTrashCount++;
               }
             } catch (threadError) {
               stats.errorsCount++;
