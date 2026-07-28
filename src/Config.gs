@@ -12,11 +12,14 @@ const CONFIG = {
     /**
      * @type {boolean}
      * If true, the script will only log the actions it would take, without
-     * actually modifying any emails (trashing, archiving, labeling).
-     * This is highly recommended for the first run.
-     * SET TO false TO ENABLE REAL ACTIONS.
+     * Separated DRY_RUN flags for 2-step deletion workflow:
+     * CLASSIFICATION: If true, labeling/archiving in gmailCleanup() is logged only.
+     * TRASH: If true, trashDeleteLabeledEmails() only logs what it would trash.
      */
-    DRY_RUN: true,
+    DRY_RUN: {
+      CLASSIFICATION: true,
+      TRASH: true,
+    },
 
     /**
      * @type {boolean}

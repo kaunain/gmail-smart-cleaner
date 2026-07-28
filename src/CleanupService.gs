@@ -1,10 +1,11 @@
 /**
- * @fileoverview Service for executing cleanup actions (trash, archive) on emails.
+ * @fileoverview Service for executing email classification and 2-step deletion workflow.
  */
 
 const CleanupService = {
   /**
-   * Processes a single GmailThread, applying all classification and cleanup rules.
+   * Processes a single GmailThread, applying classification and identifying delete candidates.
+   * NOTE: This function NEVER moves threads to Trash. Step 2 (trashDeleteLabeledEmails) moves them to Trash.
    * @param {GoogleAppsScript.Gmail.GmailThread} thread The thread to process.
    * @param {Object} stats Mutable stats object to update.
    * @param {Map<string, GoogleAppsScript.Gmail.GmailLabel>} labelMap A map of all user labels.
@@ -13,7 +14,6 @@ const CleanupService = {
   processThread(thread, stats, labelMap, priorityLabel) {
     try {
       stats.processedCount++;
-      const threadId = thread.getId();
       const subject = thread.getFirstMessageSubject() || '(No Subject)';
       const lastMessageDate = thread.getLastMessageDate();
 
@@ -29,7 +29,7 @@ const CleanupService = {
           AppLogger.log(
             `Gmail-marked important thread found: "${subject}". Applying '${priorityLabelName}' label.`
           );
-          if (!CONFIG.EXECUTION.DRY_RUN) {
+          if (!Utils.isClassificationDryRun()) {
             thread.addLabel(priorityLabel);
           }
           labelsAppliedInThisRun++;
@@ -44,15 +44,19 @@ const CleanupService = {
       const from = classification.from || '';
       const domain = classification.domain || '';
 
+      if (newLabels.length > 0) {
+        stats.classifiedCount = (stats.classifiedCount || 0) + 1;
+      }
+
       // Build a combined set of existing and new labels for rule evaluation
       const allLabels = new Set([
         ...existingThreadLabels,
         ...newLabels.map((l) => l.toLowerCase()),
       ]);
 
-      let actionTaken = false;
+      let isDeleteCandidate = false;
 
-      // 2. Evaluate Trash Rules
+      // 2. Evaluate Trash / Delete candidate Rules
       const trashRules = CONFIG?.RULES?.TRASH_RULES || [];
       for (const rule of trashRules) {
         if (!rule || !rule.label || rule.days == null) continue;
@@ -65,31 +69,24 @@ const CleanupService = {
             if (
               this.isSafeToDelete(thread, subject, [...allLabels], from, domain)
             ) {
-              if (!CONFIG.EXECUTION.DRY_RUN) {
-                thread.moveToTrash();
+              isDeleteCandidate = true;
+              if (!newLabels.map((l) => l.toLowerCase()).includes('delete')) {
+                newLabels.push('Delete');
               }
-              stats.trashedCount++;
-              // Enhance stats for detailed logging
-              const ruleKey = `label: ${rule.label}, days: ${rule.days}`;
-              if (!stats.trashedByRule) {
-                stats.trashedByRule = {};
-              }
-              stats.trashedByRule[ruleKey] =
-                (stats.trashedByRule[ruleKey] || 0) + 1;
-              actionTaken = true;
-              break; // Action taken, no need to check other trash/archive rules
+              stats.deleteCandidatesCount =
+                (stats.deleteCandidatesCount || 0) + 1;
+              break;
             } else {
-              // Matched a trash rule but was stopped by a safety check
-              stats.skippedCount++;
-              actionTaken = true; // Considered "processed", so skip archiving
+              // Matched a cleanup rule but blocked by safety
+              stats.skippedCount = (stats.skippedCount || 0) + 1;
               break;
             }
           }
         }
       }
 
-      // 3. Evaluate Archive Rules (only if not trashed or skipped)
-      if (!actionTaken) {
+      // 3. Evaluate Archive Rules (only if not candidate for delete)
+      if (!isDeleteCandidate) {
         const archiveRules = CONFIG?.RULES?.ARCHIVE_RULES || [];
         for (const rule of archiveRules) {
           if (!rule || !rule.label) continue;
@@ -99,30 +96,27 @@ const CleanupService = {
             const archiveUnread = rule.archiveUnread === true;
 
             if (isRead || archiveUnread) {
-              if (!CONFIG.EXECUTION.DRY_RUN) {
+              if (!Utils.isClassificationDryRun()) {
                 thread.moveToArchive();
               }
-              stats.archivedCount++;
-              actionTaken = true;
-              break; // Action taken
+              stats.archivedCount = (stats.archivedCount || 0) + 1;
+              break;
             }
           }
         }
       }
 
-      // 4. Apply new labels (if any were identified)
+      // 4. Apply new labels (including Delete label if identified)
       if (newLabels.length > 0) {
         for (const labelName of newLabels) {
-          // Check if the thread already has this label to avoid redundant API calls
           if (!existingThreadLabels.includes(labelName.toLowerCase())) {
-            if (!CONFIG.EXECUTION.DRY_RUN) {
+            if (!Utils.isClassificationDryRun()) {
               const label = labelMap.get(labelName);
               if (label) {
                 thread.addLabel(label);
               }
             }
             labelsAppliedInThisRun++;
-            // Enhance stats for detailed logging
             if (!stats.labeledByLabel) {
               stats.labeledByLabel = {};
             }
@@ -133,13 +127,7 @@ const CleanupService = {
       }
 
       if (labelsAppliedInThisRun > 0) {
-        stats.labeledCount++; // Increment once if any labels were applied to this thread.
-      }
-
-      // If no action was taken at all, it's implicitly "kept" but not "skipped"
-      // A "skip" means a rule matched but was blocked by safety.
-      if (!actionTaken && newLabels.length === 0) {
-        // This case is implicitly a "keep", no stat change needed.
+        stats.labeledCount = (stats.labeledCount || 0) + 1;
       }
     } catch (error) {
       stats.errorCount = (stats.errorCount || 0) + 1;
@@ -147,6 +135,76 @@ const CleanupService = {
         `Failed to process thread "${thread?.getFirstMessageSubject?.() || 'unknown'}": ${error.message}`
       );
     }
+  },
+
+  /**
+   * Validates safety rules for a given thread.
+   * Returns an object indicating whether it's safe to delete and the skip reason if unsafe.
+   *
+   * @param {GoogleAppsScript.Gmail.GmailThread} thread Gmail thread.
+   * @param {string} subject Thread subject.
+   * @param {string[]} threadLabelNames Normalized label names.
+   * @param {string} from Sender email.
+   * @param {string} domain Sender domain.
+   * @returns {{safe: boolean, reason?: string}}
+   */
+  getSafetyCheckResult(thread, subject, threadLabelNames, from, domain) {
+    const dlog = CONFIG.EXECUTION.DEBUG ? AppLogger.debug : () => {};
+
+    if (thread.hasStarredMessages()) {
+      dlog(`  > [SAFETY CHECK] Result: FALSE. Reason: Thread is starred.`);
+      return { safe: false, reason: 'SKIPPED - Starred' };
+    }
+
+    if (thread.isImportant()) {
+      dlog(
+        `  > [SAFETY CHECK] Result: FALSE. Reason: Thread is marked as important by Gmail.`
+      );
+      return { safe: false, reason: 'SKIPPED - Important' };
+    }
+
+    if (CONFIG.SAFETY.ALLOW_DELETING_UNREAD === false && thread.isUnread()) {
+      dlog(
+        `  > [SAFETY CHECK] Result: FALSE. Reason: Thread is unread and ALLOW_DELETING_UNREAD is false.`
+      );
+      return { safe: false, reason: 'SKIPPED - Unread' };
+    }
+
+    const safeSenders = (CONFIG.SAFETY.SAFE_SENDERS || []).map((e) =>
+      e.toLowerCase()
+    );
+    const safeDomains = (CONFIG.SAFETY.SAFE_DOMAINS || []).map((d) =>
+      d.toLowerCase()
+    );
+    const safeLabels = (CONFIG.SAFETY.PROTECTED_LABELS || []).map((l) =>
+      l.toLowerCase()
+    );
+    const matchedSafeLabel = threadLabelNames.find((label) =>
+      safeLabels.includes(label.toLowerCase())
+    );
+    if (matchedSafeLabel) {
+      dlog(
+        `  > [SAFETY CHECK] Result: FALSE. Reason: Thread has protected label "${matchedSafeLabel}".`
+      );
+      return { safe: false, reason: 'SKIPPED - Protected label' };
+    }
+
+    if (from && safeSenders.includes(from.toLowerCase())) {
+      dlog(
+        `  > [SAFETY CHECK] Result: FALSE. Reason: Sender "${from}" is in SAFE_SENDERS.`
+      );
+      return { safe: false, reason: 'SKIPPED - Safe sender' };
+    }
+
+    if (domain && safeDomains.includes(domain.toLowerCase())) {
+      dlog(
+        `  > [SAFETY CHECK] Result: FALSE. Reason: Domain "${domain}" is in SAFE_DOMAINS.`
+      );
+      return { safe: false, reason: 'SKIPPED - Safe domain' };
+    }
+
+    dlog(`  > [SAFETY CHECK] Result: TRUE. All safety checks passed.`);
+    return { safe: true };
   },
 
   /**
@@ -160,61 +218,171 @@ const CleanupService = {
    * @returns {boolean}
    */
   isSafeToDelete(thread, subject, threadLabelNames, from, domain) {
-    const dlog = CONFIG.EXECUTION.DEBUG ? AppLogger.debug : () => {};
+    return this.getSafetyCheckResult(
+      thread,
+      subject,
+      threadLabelNames,
+      from,
+      domain
+    ).safe;
+  },
 
-    if (thread.hasStarredMessages()) {
-      dlog(`  > [SAFETY CHECK] Result: FALSE. Reason: Thread is starred.`);
-      return false;
-    }
-
-    if (thread.isImportant()) {
-      dlog(
-        `  > [SAFETY CHECK] Result: FALSE. Reason: Thread is marked as important by Gmail.`
+  /**
+   * Step 2 of deletion workflow: Processes threads labeled 'Delete' and moves eligible threads to Trash after safety checks.
+   * @returns {Object} Statistics of the trash run.
+   */
+  trashDeleteLabeledEmails() {
+    const lock = LockService.getScriptLock();
+    if (!lock.tryLock(10000)) {
+      AppLogger.log(
+        'Could not acquire lock for trashDeleteLabeledEmails. Exiting...'
       );
-      return false;
+      return {
+        deleteLabelFoundCount: 0,
+        eligibleForTrashCount: 0,
+        trashedCount: 0,
+        protectedSkippedCount: 0,
+        errorsCount: 0,
+      };
     }
 
-    if (CONFIG.SAFETY.ALLOW_DELETING_UNREAD === false && thread.isUnread()) {
-      dlog(
-        `  > [SAFETY CHECK] Result: FALSE. Reason: Thread is unread and ALLOW_DELETING_UNREAD is false.`
+    Utils.resetStartTime();
+    AppLogger.log('====== Delete Label Trash Run ======');
+    if (Utils.isTrashDryRun()) {
+      AppLogger.log(
+        '*** TRASH DRY RUN IS ENABLED. NO EMAILS WILL BE MOVED TO TRASH. ***'
       );
-      return false;
     }
 
-    const safeSenders = (CONFIG.SAFETY.SAFE_SENDERS || []).map((e) =>
-      e.toLowerCase()
-    );
-    const safeDomains = (CONFIG.SAFETY.SAFE_DOMAINS || []).map((d) =>
-      d.toLowerCase()
-    );
-    const safeLabels = (CONFIG.SAFETY.PROTECTED_LABELS || []).map((l) =>
-      l.toLowerCase()
-    );
-    const matchedSafeLabel = threadLabelNames.find((label) =>
-      safeLabels.includes(label)
-    );
-    if (matchedSafeLabel) {
-      dlog(
-        `  > [SAFETY CHECK] Result: FALSE. Reason: Thread has protected label "${matchedSafeLabel}".`
+    const stats = {
+      deleteLabelFoundCount: 0,
+      eligibleForTrashCount: 0,
+      trashedCount: 0,
+      protectedSkippedCount: 0,
+      errorsCount: 0,
+    };
+
+    try {
+      const searchQuery = 'label:Delete -in:trash';
+      let pageToken = null;
+
+      do {
+        const listOptions = {
+          q: searchQuery,
+          maxResults: CONFIG.EXECUTION.BATCH_SIZE,
+          pageToken: pageToken,
+        };
+
+        const response = Gmail.Users.Threads.list('me', listOptions);
+        pageToken = response.nextPageToken;
+
+        const threads = response.threads || [];
+        if (threads.length > 0) {
+          stats.deleteLabelFoundCount += threads.length;
+          const eligibleThreadsInBatch = [];
+
+          for (const threadInfo of threads) {
+            try {
+              const thread = GmailApp.getThreadById(threadInfo.id);
+              if (!thread) continue;
+
+              const subject = thread.getFirstMessageSubject() || '(No Subject)';
+              const threadLabels = thread
+                .getLabels()
+                .map((l) => l.getName().toLowerCase());
+
+              if (!threadLabels.includes('delete')) {
+                AppLogger.log(
+                  `SKIPPED thread "${subject}" - SKIPPED - Missing Delete label`
+                );
+                stats.protectedSkippedCount++;
+                continue;
+              }
+
+              const msgs = thread.getMessages();
+              const firstMsg = msgs.length > 0 ? msgs[0] : null;
+              const fromHeader = firstMsg ? firstMsg.getFrom() || '' : '';
+              const emailMatch = fromHeader.match(/<([^>]+)>/);
+              const from = (
+                emailMatch ? emailMatch[1] : fromHeader
+              ).toLowerCase();
+              const domain = from.includes('@') ? from.split('@')[1] : '';
+
+              const safetyResult = this.getSafetyCheckResult(
+                thread,
+                subject,
+                threadLabels,
+                from,
+                domain
+              );
+
+              if (!safetyResult.safe) {
+                AppLogger.log(
+                  `SKIPPED thread "${subject}" - ${safetyResult.reason}`
+                );
+                stats.protectedSkippedCount++;
+              } else {
+                stats.eligibleForTrashCount++;
+                eligibleThreadsInBatch.push(thread);
+              }
+            } catch (threadError) {
+              stats.errorsCount++;
+              AppLogger.error(
+                `Failed to validate thread ID ${threadInfo.id}: ${threadError.message}`
+              );
+            }
+          }
+
+          if (eligibleThreadsInBatch.length > 0) {
+            if (Utils.isTrashDryRun()) {
+              AppLogger.log(
+                `[DRY RUN] Would move ${eligibleThreadsInBatch.length} threads to Trash.`
+              );
+            } else {
+              Utils.withRetry(
+                () => GmailApp.moveThreadsToTrash(eligibleThreadsInBatch),
+                `move ${eligibleThreadsInBatch.length} threads to Trash`
+              );
+              stats.trashedCount += eligibleThreadsInBatch.length;
+              AppLogger.log(
+                `Successfully moved ${eligibleThreadsInBatch.length} threads to Trash.`
+              );
+            }
+          }
+        }
+
+        if (Utils.isTimeRunningOut()) {
+          AppLogger.log(
+            'Execution time limit is approaching in trashDeleteLabeledEmails.'
+          );
+          break;
+        }
+      } while (pageToken);
+
+      AppLogger.table('Delete Label Trash Run', [
+        ['Delete-labeled threads found', stats.deleteLabelFoundCount],
+        ['Eligible for Trash', stats.eligibleForTrashCount],
+        ['Skipped', stats.protectedSkippedCount],
+        ['Actually moved to Trash', stats.trashedCount],
+        ['Errors', stats.errorsCount],
+      ]);
+
+      if (Utils.isTrashDryRun()) {
+        AppLogger.log(
+          `[DRY RUN] Would move ${stats.eligibleForTrashCount} threads to Trash.`
+        );
+      }
+    } catch (e) {
+      stats.errorsCount++;
+      AppLogger.error(
+        'A critical error occurred during trashDeleteLabeledEmails.',
+        e
       );
-      return false;
+    } finally {
+      lock.releaseLock();
+      AppLogger.log('====== Delete Label Trash Run Complete ======');
     }
 
-    if (safeSenders.includes(from)) {
-      dlog(
-        `  > [SAFETY CHECK] Result: FALSE. Reason: Sender "${from}" is in SAFE_SENDERS.`
-      );
-      return false;
-    }
-
-    if (domain && safeDomains.includes(domain)) {
-      dlog(
-        `  > [SAFETY CHECK] Result: FALSE. Reason: Domain "${domain}" is in SAFE_DOMAINS.`
-      );
-      return false;
-    }
-
-    dlog(`  > [SAFETY CHECK] Result: TRUE. All safety checks passed.`);
-    return true;
+    return stats;
   },
 };

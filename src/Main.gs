@@ -56,13 +56,11 @@ function runHealthCheck() {
   AppLogger.log('====== Starting Health Check ======');
 
   // 0. Check DRY_RUN status
-  if (CONFIG.EXECUTION.DRY_RUN) {
-    AppLogger.warn(
-      'DRY_RUN is currently ENABLED. The script will not make any changes.'
-    );
-  } else {
-    AppLogger.log('DRY_RUN is DISABLED. The script will perform real actions.');
-  }
+  const classificationDryRun = Utils.isClassificationDryRun();
+  const trashDryRun = Utils.isTrashDryRun();
+  AppLogger.log(
+    `DRY_RUN status -> Classification: ${classificationDryRun ? 'ENABLED' : 'DISABLED'} | Trash: ${trashDryRun ? 'ENABLED' : 'DISABLED'}`
+  );
 
   // 1. Validate configuration
   const configErrors = Utils.validateConfig();
@@ -148,8 +146,10 @@ function gmailCleanup() {
 
   Utils.resetStartTime(); // Ensure runtime calculation is correct for this execution slice
   AppLogger.log('====== Starting Gmail Cleanup ======');
-  if (CONFIG.EXECUTION.DRY_RUN) {
-    AppLogger.log('*** DRY RUN IS ENABLED. NO CHANGES WILL BE MADE. ***');
+  if (Utils.isClassificationDryRun()) {
+    AppLogger.log(
+      '*** CLASSIFICATION DRY RUN IS ENABLED. NO CHANGES WILL BE MADE. ***'
+    );
   }
 
   // Load state for resumable execution
@@ -198,11 +198,12 @@ function gmailCleanup() {
       if (processedInBatch > 0) {
         const summaryParts = [`processed : ${processedInBatch}`];
 
-        // Trashed Summary
-        const trashedInBatch =
-          (stats.trashedCount || 0) - (statsBeforeBatch.trashedCount || 0);
-        if (trashedInBatch > 0) {
-          summaryParts.push(`Trash : ${trashedInBatch}`);
+        // Delete candidates summary
+        const deleteCandidatesInBatch =
+          (stats.deleteCandidatesCount || 0) -
+          (statsBeforeBatch.deleteCandidatesCount || 0);
+        if (deleteCandidatesInBatch > 0) {
+          summaryParts.push(`Delete Candidates : ${deleteCandidatesInBatch}`);
         }
 
         // Archived Summary
@@ -269,8 +270,9 @@ function gmailCleanup() {
     const totalRuntime = Utils.getScriptRuntime();
     const {
       processedCount,
+      classifiedCount,
       labeledCount,
-      trashedCount,
+      deleteCandidatesCount,
       archivedCount,
       skippedCount,
       errorCount,
@@ -280,14 +282,15 @@ function gmailCleanup() {
 
     AppLogger.table('Cleanup Summary', [
       ['Reviewed', processedCount],
+      ['Classified', classifiedCount || 0],
       ['Safety blocked', skippedCount],
       ['No action', remainingReviewedCount],
       ['Labeled', labeledCount],
-      ['Trash', trashedCount],
+      ['Delete candidates', deleteCandidatesCount || 0],
       ['Archive', archivedCount],
       ['Failed', errorCount || 0],
       ['Runtime', `${totalRuntime}s`],
-      ['Dry Run', CONFIG.EXECUTION.DRY_RUN ? 'Yes' : 'No'],
+      ['Classification Dry Run', Utils.isClassificationDryRun() ? 'Yes' : 'No'],
     ]);
 
     if (skippedCount > 0 || remainingReviewedCount > 0) {
@@ -305,13 +308,6 @@ function gmailCleanup() {
       AppLogger.log(
         'Applied labels → none (no matching rules or labels already present)'
       );
-    }
-
-    if (trashedCount > 0 && stats.trashedByRule) {
-      const trashSummary = Object.entries(stats.trashedByRule)
-        .map(([rule, count]) => `${rule}: ${count}`)
-        .join(' | ');
-      AppLogger.log(`Trash rules → ${trashSummary}`);
     }
 
     // Perform housekeeping by removing any unused labels
@@ -337,6 +333,15 @@ function gmailCleanup() {
     RuleEngine.clearCache(); // Ensure cache is cleared after every run.
     lock.releaseLock();
   }
+}
+
+/**
+ * Step 2 of deletion workflow: Moves eligible threads labeled 'Delete' to Trash.
+ * This is a separate top-level function that must be run manually or triggered independently.
+ * @returns {Object} Stats of the trash run.
+ */
+function trashDeleteLabeledEmails() {
+  return CleanupService.trashDeleteLabeledEmails();
 }
 
 /**
@@ -390,7 +395,7 @@ function cleanupAttachments() {
           `Found a batch of ${threads.length} threads with attachments larger than ${MIN_SIZE_MB}MB.`
         );
 
-        if (CONFIG.EXECUTION.DRY_RUN) {
+        if (Utils.isClassificationDryRun()) {
           AppLogger.log(
             `[DRY RUN] Would apply label "${LABEL}" to ${threadIds.length} threads.`
           );
@@ -435,7 +440,7 @@ function cleanupAttachments() {
  * @private
  */
 function _cleanupEmptyLabels() {
-  if (CONFIG.EXECUTION.DRY_RUN) {
+  if (Utils.isClassificationDryRun()) {
     AppLogger.log('[DRY RUN] Skipping cleanup of empty labels.');
     return;
   }

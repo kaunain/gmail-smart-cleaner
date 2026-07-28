@@ -46,7 +46,8 @@ const LabelService = {
     CONFIG.LABELS.REQUIRED_LABELS.forEach((labelName) => {
       if (!existingLabelsLower.includes(labelName.toLowerCase())) {
         try {
-          if (CONFIG.EXECUTION.DRY_RUN) {
+          const isDryRun = Utils.isClassificationDryRun();
+          if (isDryRun) {
             AppLogger.log(`[DRY RUN] Missing label found: "${labelName}"`);
           } else {
             Utils.withRetry(
@@ -62,8 +63,9 @@ const LabelService = {
       }
     });
     if (createdCount > 0) {
-      const action = CONFIG.EXECUTION.DRY_RUN ? 'identified' : 'created';
-      if (!CONFIG.EXECUTION.DRY_RUN && createdLabels.length > 0) {
+      const isDryRun = Utils.isClassificationDryRun();
+      const action = isDryRun ? 'identified' : 'created';
+      if (!isDryRun && createdLabels.length > 0) {
         AppLogger.log(`Created labels: ${createdLabels.join(', ')}`);
       }
       AppLogger.log(`Successfully ${action} ${createdCount} missing label(s).`);

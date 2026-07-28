@@ -10,6 +10,30 @@ const Utils = {
   _scriptStartTime: 0,
 
   /**
+   * Checks if classification dry run is enabled.
+   * @returns {boolean}
+   */
+  isClassificationDryRun() {
+    const dryRun = CONFIG.EXECUTION.DRY_RUN;
+    if (typeof dryRun === 'object' && dryRun !== null) {
+      return dryRun.CLASSIFICATION !== false;
+    }
+    return Boolean(dryRun);
+  },
+
+  /**
+   * Checks if trash dry run is enabled.
+   * @returns {boolean}
+   */
+  isTrashDryRun() {
+    const dryRun = CONFIG.EXECUTION.DRY_RUN;
+    if (typeof dryRun === 'object' && dryRun !== null) {
+      return dryRun.TRASH !== false;
+    }
+    return Boolean(dryRun);
+  },
+
+  /**
    * Resets the script start time to the current time.
    * Should be called at the beginning of a new execution slice.
    */

@@ -41,10 +41,20 @@ const SummaryService = {
     lines.push('Gmail Smart Cleaner Summary');
     lines.push('================================');
     lines.push(`- Threads Processed: ${stats.processedCount || 0}`);
+    if (stats.classifiedCount != null) {
+      lines.push(`- Threads Classified: ${stats.classifiedCount}`);
+    }
+    if (stats.deleteCandidatesCount != null) {
+      lines.push(
+        `- Delete Candidates Identified: ${stats.deleteCandidatesCount}`
+      );
+    }
     lines.push(`- Threads Archived: ${stats.archivedCount || 0}`);
-    lines.push(`- Threads Trashed: ${stats.trashedCount || 0}`);
-    lines.push(`- Threads Skipped: ${stats.skippedCount || 0}`);
-    lines.push(`- Errors: ${stats.errorsCount || 0}`);
+    if (stats.trashedCount != null) {
+      lines.push(`- Threads Trashed: ${stats.trashedCount}`);
+    }
+    lines.push(`- Threads Skipped (Safety): ${stats.skippedCount || 0}`);
+    lines.push(`- Errors: ${stats.errorsCount || stats.errorCount || 0}`);
     lines.push('');
 
     lines.push('Threads Labeled (by Label):');
@@ -61,7 +71,10 @@ const SummaryService = {
     }
     lines.push('');
 
-    lines.push(`Dry Run: ${CONFIG.EXECUTION.DRY_RUN ? 'Yes' : 'No'}`);
+    lines.push(
+      `Classification Dry Run: ${Utils.isClassificationDryRun() ? 'Yes' : 'No'}`
+    );
+    lines.push(`Trash Dry Run: ${Utils.isTrashDryRun() ? 'Yes' : 'No'}`);
     lines.push(`Runtime: ${stats.totalRuntime || 0} sec`);
     lines.push('');
     lines.push('Generated at:');

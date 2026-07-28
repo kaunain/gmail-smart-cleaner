@@ -29,11 +29,13 @@ const StateService = (function () {
       processedThreadIds: [],
       stats: {
         processedCount: 0,
+        classifiedCount: 0,
         archivedCount: 0,
         labeledCount: 0,
-        trashedCount: 0,
+        deleteCandidatesCount: 0,
         skippedCount: 0,
         errorCount: 0,
+        labeledByLabel: {},
       },
     };
   }
