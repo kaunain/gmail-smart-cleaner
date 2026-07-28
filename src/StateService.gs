@@ -32,6 +32,7 @@ const StateService = (function () {
         classifiedCount: 0,
         archivedCount: 0,
         labeledCount: 0,
+        labeledOnlyCount: 0,
         deleteCandidatesCount: 0,
         skippedCount: 0,
         noActionCount: 0,

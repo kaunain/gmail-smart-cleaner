@@ -272,6 +272,7 @@ function gmailCleanup() {
       processedCount,
       classifiedCount,
       labeledCount,
+      labeledOnlyCount,
       deleteCandidatesCount,
       archivedCount,
       skippedCount,
@@ -286,7 +287,7 @@ function gmailCleanup() {
       ['Classified', classifiedCount || 0],
       ['Delete candidates', deleteCandidatesCount || 0],
       ['Archived', archivedCount || 0],
-      ['Labeled', labeledCount || 0],
+      ['Labeled (total)', labeledCount || 0],
       ['Safety blocked', skippedCount || 0],
       ['No action taken', noAction],
       ['Failed', errorCount || 0],
@@ -295,7 +296,7 @@ function gmailCleanup() {
     ]);
 
     AppLogger.log(
-      `Breakdown → reviewed ${processedCount} | delete candidates ${deleteCandidatesCount || 0} | archived ${archivedCount || 0} | safety-blocked ${skippedCount || 0} | no action ${noAction}`
+      `Breakdown → reviewed ${processedCount} | delete candidates ${deleteCandidatesCount || 0} | archived ${archivedCount || 0} | labeled only ${labeledOnlyCount || 0} | safety-blocked ${skippedCount || 0} | no action ${noAction}`
     );
 
     if (labeledCount > 0 && stats.labeledByLabel) {

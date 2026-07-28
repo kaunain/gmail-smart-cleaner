@@ -155,9 +155,18 @@ const CleanupService = {
         stats.labeledCount = (stats.labeledCount || 0) + 1;
       }
 
-      const actionTaken =
-        isDeleteCandidate || isArchived || labelsAppliedInThisRun > 0;
-      if (!actionTaken && !isSafetyBlocked) {
+      // Record mutually exclusive primary outcome for exact breakdown math
+      if (isDeleteCandidate) {
+        // Primary outcome: Delete candidate (already counted in stats.deleteCandidatesCount)
+      } else if (isArchived) {
+        // Primary outcome: Archived (already counted in stats.archivedCount)
+      } else if (isSafetyBlocked) {
+        // Primary outcome: Safety blocked (already counted in stats.skippedCount)
+      } else if (labelsAppliedInThisRun > 0) {
+        // Primary outcome: Labeled only (new classification/priority labels applied, not deleted or archived)
+        stats.labeledOnlyCount = (stats.labeledOnlyCount || 0) + 1;
+      } else {
+        // Primary outcome: No action taken
         stats.noActionCount = (stats.noActionCount || 0) + 1;
       }
     } catch (error) {
