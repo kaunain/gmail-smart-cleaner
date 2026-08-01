@@ -123,24 +123,17 @@ function runHealthCheck() {
  */
 function gmailCleanup() {
   const lock = LockService.getScriptLock();
-  const lockAcquired = lock.tryLock(10000);
-
-  if (!lockAcquired) {
-    AppLogger.log(
-      'Could not acquire lock. Another instance is likely running. Exiting...'
-    );
+  if (!lock.tryLock(10000)) {
+    AppLogger.log('Could not acquire lock. Another instance is likely running. Exiting...');
     return;
   }
 
-  // Validate configuration before running
+  // --- Config validation ---
   const configErrors = Utils.validateConfig();
   if (configErrors.length > 0) {
     const errorMsg = 'GmailCleanup stopped due to configuration errors.';
     AppLogger.error(errorMsg);
-    _sendErrorNotification(
-      'Configuration Error',
-      `${errorMsg}\n\n${configErrors.join('\n')}`
-    );
+    _sendErrorNotification('Configuration Error', `${errorMsg}\n\n${configErrors.join('\n')}`);
     lock.releaseLock();
     return;
   }
@@ -148,204 +141,165 @@ function gmailCleanup() {
   Utils.resetStartTime();
   AppLogger.log('====== Starting Gmail Cleanup ======');
   if (Utils.isClassificationDryRun()) {
+    AppLogger.log('*** CLASSIFICATION DRY RUN IS ENABLED. NO CHANGES WILL BE MADE. ***');
+  }
+
+  // --- Load state ---
+  // afterCursorMs = start of next 30-day window to process (oldest-first).
+  // Initialised to START_FROM_DATE (or 10 years ago) on first run.
+  const runState = StateService.loadState();
+  const { stats } = runState;
+  let afterCursorMs = runState.afterCursorMs;
+
+  // Hard ceiling — do not process emails on/after this date
+  const endCeilingMs   = GmailUtils.getEndCeilingMs();
+  const windowDays     = GmailUtils.getWindowDays();   // 30
+  const windowDurationMs = windowDays * 24 * 60 * 60 * 1000;
+
+  AppLogger.log(
+    `Scanning: ${new Date(afterCursorMs).toISOString().substring(0, 10)}` +
+    ` → ${new Date(endCeilingMs).toISOString().substring(0, 10)}` +
+    ` (${windowDays}-day windows, oldest-first)`
+  );
+
+  if (CONFIG.EXECUTION.PROCESS_ONLY_BEFORE_DATE) {
     AppLogger.log(
-      '*** CLASSIFICATION DRY RUN IS ENABLED. NO CHANGES WILL BE MADE. ***'
+      `PROCESS_ONLY_BEFORE_DATE is set: only emails before ` +
+      `${CONFIG.EXECUTION.PROCESS_ONLY_BEFORE_DATE} will be processed.`
     );
   }
 
-  // Load resumable state.
-  // `beforeCursorMs`: we fetch threads BEFORE this date.
-  // null on first run = start from NOW and walk backward in time (oldest-first).
-  const runState = StateService.loadState();
-  const { stats } = runState;
-  let beforeCursorMs = runState.beforeCursorMs || Date.now();
-
-  AppLogger.log(
-    `Date cursor: fetching emails before ${new Date(beforeCursorMs).toISOString()}`
-  );
-
-  // Make sure all configured labels exist before processing.
   LabelService.ensureLabelsExist();
 
   try {
-    // Fetch Priority label and label map once — used inside loop callback.
     const priorityLabel = GmailApp.getUserLabelByName('Priority');
-    const userLabels = GmailApp.getUserLabels();
-    const labelMap = new Map(userLabels.map((l) => [l.getName(), l]));
+    const userLabels    = GmailApp.getUserLabels();
+    const labelMap      = new Map(userLabels.map((l) => [l.getName(), l]));
 
-    // --- MAIN PROCESSING LOOP ---
-    // Each iteration: build a `before:<cursor>` query, fetch one batch (oldest-first),
-    // process it, then move cursor to the oldest date in that batch.
-    // Loop stops when: no more threads, MAX_THREADS limit hit, or timeout.
+    // =========================================================
+    // MAIN LOOP — one iteration = one 30-day date window
+    // Walk FORWARD in time: oldest window first → newest last
+    // =========================================================
+    while (afterCursorMs < endCeilingMs) {
 
-    let keepGoing = true;
+      // Window end = afterCursorMs + 30 days, capped at endCeilingMs
+      const beforeCursorMs = Math.min(afterCursorMs + windowDurationMs, endCeilingMs);
 
-    while (keepGoing) {
-      // Check MAX_THREADS_TO_PROCESS before fetching
+      // --- MAX_THREADS_TO_PROCESS pre-check ---
       const maxLimit = CONFIG.EXECUTION.MAX_THREADS_TO_PROCESS;
       if (maxLimit > 0 && (stats.processedCount || 0) >= maxLimit) {
-        AppLogger.log(
-          `Reached MAX_THREADS_TO_PROCESS limit of ${maxLimit}. Stopping.`
-        );
-        break;
+        AppLogger.log(`Reached MAX_THREADS_TO_PROCESS limit of ${maxLimit}. Pausing.`);
+        StateService.saveState(runState, afterCursorMs, false);
+        return;
       }
 
-      // Build query with current before-cursor
-      const searchQuery = GmailUtils.buildSearchQuery(beforeCursorMs);
+      const statsBeforeWindow = JSON.parse(JSON.stringify(stats));
+      const windowStartTime   = new Date();
 
-      const statsBeforeBatch = JSON.parse(JSON.stringify(stats));
-      const batchStartTime = new Date();
-
-      const result = GmailUtils.searchAndProcessBatch(
-        searchQuery,
+      // Process this window (oldest-first within window)
+      const result = GmailUtils.processWindow(
+        afterCursorMs,
+        beforeCursorMs,
         stats.processedCount || 0,
         (thread) => {
           CleanupService.processThread(thread, stats, labelMap, priorityLabel);
         }
       );
 
-      // --- Advance cursor to oldest date in this batch ---
-      // Next iteration will fetch threads BEFORE this older date.
-      if (result.oldestDateInBatchMs !== null) {
-        beforeCursorMs = result.oldestDateInBatchMs;
-      }
-
-      // --- Batch logging ---
-      const batchDuration = ((new Date() - batchStartTime) / 1000).toFixed(1);
-      const processedInBatch = result.processedCount || 0;
-
-      if (processedInBatch > 0) {
-        const summaryParts = [
-          `processed: ${processedInBatch}`,
-          `cursor→ before: ${new Date(beforeCursorMs).toDateString()}`,
+      // --- Window logging ---
+      const windowDuration = ((new Date() - windowStartTime) / 1000).toFixed(1);
+      if (result.processedCount > 0) {
+        const parts = [
+          `window: ${new Date(afterCursorMs).toISOString().substring(0, 10)} → ${new Date(beforeCursorMs).toISOString().substring(0, 10)}`,
+          `processed: ${result.processedCount}`,
         ];
 
-        const deleteDelta =
-          (stats.deleteCandidatesCount || 0) -
-          (statsBeforeBatch.deleteCandidatesCount || 0);
-        if (deleteDelta > 0)
-          summaryParts.push(`Delete Candidates: ${deleteDelta}`);
+        const deleteDelta  = (stats.deleteCandidatesCount || 0) - (statsBeforeWindow.deleteCandidatesCount || 0);
+        const archiveDelta = (stats.archivedCount         || 0) - (statsBeforeWindow.archivedCount         || 0);
+        const labelDelta   = (stats.labeledCount          || 0) - (statsBeforeWindow.labeledCount          || 0);
 
-        const archiveDelta =
-          (stats.archivedCount || 0) - (statsBeforeBatch.archivedCount || 0);
-        if (archiveDelta > 0) summaryParts.push(`Archived: ${archiveDelta}`);
-
-        const labeledDelta =
-          (stats.labeledCount || 0) - (statsBeforeBatch.labeledCount || 0);
-        if (labeledDelta > 0) {
-          const labeledByLabelBefore = statsBeforeBatch.labeledByLabel || {};
-          for (const label in stats.labeledByLabel) {
-            const delta =
-              (stats.labeledByLabel[label] || 0) -
-              (labeledByLabelBefore[label] || 0);
-            if (delta > 0) summaryParts.push(`${label}: ${delta}`);
+        if (deleteDelta  > 0) parts.push(`Delete Candidates: ${deleteDelta}`);
+        if (archiveDelta > 0) parts.push(`Archived: ${archiveDelta}`);
+        if (labelDelta   > 0) {
+          const before = statsBeforeWindow.labeledByLabel || {};
+          for (const lbl in stats.labeledByLabel) {
+            const d = (stats.labeledByLabel[lbl] || 0) - (before[lbl] || 0);
+            if (d > 0) parts.push(`${lbl}: ${d}`);
           }
         }
 
-        AppLogger.summary(
-          `[${batchDuration}s] ${summaryParts.join(' | ')}`
-        );
+        AppLogger.summary(`[${windowDuration}s] ${parts.join(' | ')}`);
       }
 
-      // Stop conditions
-      if (!result.hasMore || result.processedCount === 0) {
-        // No more threads match the query — all done
-        AppLogger.log('No more threads to process. Cleanup complete.');
-        keepGoing = false;
-        break;
+      // Stop if limit hit mid-window
+      if (result.limitReached) {
+        AppLogger.log(`MAX_THREADS_TO_PROCESS limit reached. Saving cursor and pausing.`);
+        StateService.saveState(runState, afterCursorMs, false);
+        return;
       }
 
-      if (maxLimit > 0 && (stats.processedCount || 0) >= maxLimit) {
-        AppLogger.log(
-          `Reached MAX_THREADS_TO_PROCESS limit of ${maxLimit}. Pausing.`
-        );
-        keepGoing = false;
-        break;
-      }
+      // Advance cursor to the next window (forward in time)
+      afterCursorMs = beforeCursorMs;
 
-      // Check execution time limit
+      // Check execution time limit after each window
       if (Utils.isTimeRunningOut()) {
-        AppLogger.log(
-          'Execution time limit approaching. Saving cursor and pausing.'
-        );
-        // Save state so next trigger resumes from where we left off
-        runState.beforeCursorMs = beforeCursorMs;
-        StateService.saveState(runState, beforeCursorMs, false);
-        return; // exit without releasing lock (finally will release it)
+        AppLogger.log('Execution time limit approaching. Saving cursor and pausing.');
+        StateService.saveState(runState, afterCursorMs, false);
+        return;
       }
     }
 
-    // All threads processed — clear state
-    StateService.saveState(runState, beforeCursorMs, true);
+    // =========================================================
+    // All windows processed — clear state
+    // =========================================================
+    StateService.saveState(runState, afterCursorMs, true);
     AppLogger.log('====== Gmail Cleanup Complete ======');
 
     const totalRuntime = Utils.getScriptRuntime();
     const {
-      processedCount,
-      classifiedCount,
-      labeledCount,
-      labeledOnlyCount,
-      deleteCandidatesCount,
-      archivedCount,
-      skippedCount,
-      noActionCount,
-      errorCount,
+      processedCount, classifiedCount, labeledCount, labeledOnlyCount,
+      deleteCandidatesCount, archivedCount, skippedCount, noActionCount, errorCount,
     } = stats;
 
     AppLogger.table('Cleanup Execution Summary', [
-      ['Reviewed Threads', processedCount],
-      ['--------------------', '----------'],
-      ['Delete Candidates', deleteCandidatesCount || 0],
-      ['Archived Threads', archivedCount || 0],
-      ['Category Labeled Only', labeledOnlyCount || 0],
-      ['Safety Blocked', skippedCount || 0],
-      ['No Action Taken', noActionCount || 0],
-      ['--------------------', '----------'],
-      ['Classified (rules matched)', classifiedCount || 0],
-      ['Labels Applied (total)', labeledCount || 0],
-      ['Failed / Errors', errorCount || 0],
-      ['Runtime', `${totalRuntime}s`],
-      ['Classification Dry Run', Utils.isClassificationDryRun() ? 'Yes' : 'No'],
+      ['Reviewed Threads',           processedCount],
+      ['--------------------',       '----------'],
+      ['Delete Candidates',          deleteCandidatesCount || 0],
+      ['Archived Threads',           archivedCount         || 0],
+      ['Category Labeled Only',      labeledOnlyCount      || 0],
+      ['Safety Blocked',             skippedCount          || 0],
+      ['No Action Taken',            noActionCount         || 0],
+      ['--------------------',       '----------'],
+      ['Classified (rules matched)', classifiedCount       || 0],
+      ['Labels Applied (total)',     labeledCount          || 0],
+      ['Failed / Errors',            errorCount            || 0],
+      ['Runtime',                    `${totalRuntime}s`],
+      ['Classification Dry Run',     Utils.isClassificationDryRun() ? 'Yes' : 'No'],
     ]);
 
     AppLogger.log(
       `Thread Outcome Breakdown (Sums to ${processedCount}): ` +
-        `Delete Candidates: ${deleteCandidatesCount || 0} | ` +
-        `Archived: ${archivedCount || 0} | ` +
-        `Category Labeled: ${labeledOnlyCount || 0} | ` +
-        `Safety Blocked: ${skippedCount || 0} | ` +
-        `No Action: ${noActionCount || 0}`
+      `Delete Candidates: ${deleteCandidatesCount || 0} | Archived: ${archivedCount || 0} | ` +
+      `Category Labeled: ${labeledOnlyCount || 0} | Safety Blocked: ${skippedCount || 0} | ` +
+      `No Action: ${noActionCount || 0}`
     );
 
     if (labeledCount > 0 && stats.labeledByLabel) {
-      const labelSummary = Object.entries(stats.labeledByLabel)
-        .map(([label, count]) => `${label}: ${count}`)
-        .join(' | ');
-      AppLogger.log(`Applied labels → ${labelSummary}`);
-    } else {
       AppLogger.log(
-        'Applied labels → none (no matching rules or labels already present)'
+        `Applied labels → ${Object.entries(stats.labeledByLabel).map(([l, c]) => `${l}: ${c}`).join(' | ')}`
       );
+    } else {
+      AppLogger.log('Applied labels → none (no matching rules or labels already present)');
     }
 
     _cleanupEmptyLabels();
+    _updateExecutionHistory({ ...stats, totalRuntime, status: 'Success', completedAt: new Date().toISOString() });
 
-    _updateExecutionHistory({
-      ...stats,
-      totalRuntime,
-      status: 'Success',
-      completedAt: new Date().toISOString(),
-    });
   } catch (e) {
     AppLogger.error('A critical error occurred during gmailCleanup.', e);
     _sendErrorNotification('Script Failure: gmailCleanup', e.stack);
-    _updateExecutionHistory({
-      ...stats,
-      status: 'Failure',
-      error: e.message,
-      completedAt: new Date().toISOString(),
-    });
-    StateService.saveState(runState, beforeCursorMs, false);
+    _updateExecutionHistory({ ...stats, status: 'Failure', error: e.message, completedAt: new Date().toISOString() });
+    StateService.saveState(runState, afterCursorMs, false);
   } finally {
     RuleEngine.clearCache();
     lock.releaseLock();

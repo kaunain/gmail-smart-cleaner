@@ -53,6 +53,29 @@ const CONFIG = {
     SEARCH_OLDER_THAN_DAYS: 0,
 
     /**
+     * @type {string | null}
+     * Process ONLY emails older than this date. Emails on or after this date
+     * will be completely ignored by the script.
+     * Format: 'YYYY/MM/DD'  (e.g. '2024/12/31')
+     * Set to null to process all emails regardless of date.
+     *
+     * Example: '2024/12/31' → only emails from before 31 Dec 2024 are processed.
+     */
+    PROCESS_ONLY_BEFORE_DATE: null,
+
+    /**
+     * @type {string | null}
+     * The oldest date from which to start scanning emails.
+     * Script will begin from this date and scan forward toward PROCESS_ONLY_BEFORE_DATE (or today).
+     * Format: 'YYYY/MM/DD'  (e.g. '2010/01/01')
+     * Set to null to auto-start from 10 years ago.
+     *
+     * Tip: Set this to the approximate date of your oldest unwanted emails
+     * to skip scanning very old, already-clean emails.
+     */
+    START_FROM_DATE: null,
+
+    /**
      * @type {number}
      * The maximum number of email threads to process in a single full execution.
      * The script will stop after reaching this limit.
