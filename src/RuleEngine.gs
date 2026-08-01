@@ -83,8 +83,24 @@ const RuleEngine = (function () {
     // Process priority rules first. If a match is found, stop and return.
     for (const rule of priorityRules) {
       if (checkMatch(rule)) {
+        // Apply the same SAFE_DOMAINS guard here too
+        const safeDomains = (CONFIG.SAFETY.SAFE_DOMAINS || []).map((d) =>
+          String(d).trim().toLowerCase()
+        );
+        const safeSenders = (CONFIG.SAFETY.SAFE_SENDERS || []).map((s) =>
+          String(s).trim().toLowerCase()
+        );
+        const domainIsSafe =
+          domain && safeDomains.includes(domain.toLowerCase());
+        const senderIsSafe = safeSenders.some(
+          (s) => from && from.startsWith(s)
+        );
+        const labels =
+          domainIsSafe || senderIsSafe
+            ? (rule.labels || []).filter((l) => l.toLowerCase() !== 'delete')
+            : rule.labels || [];
         return {
-          labels: rule.labels || [],
+          labels: labels,
           from: from,
           domain: domain,
         };
@@ -99,11 +115,30 @@ const RuleEngine = (function () {
       }
     }
 
-    // If no rules matched, apply the default behavior as per README documentation.
-    // This treats any unclassified, non-important email as a candidate for deletion.
-    if (matchedLabels.size === 0) {
-      // The 'Delete' label marks it for the TRASH_RULES to process.
-      matchedLabels.add('Delete');
+    // --- SAFE_DOMAINS / SAFE_SENDERS guard ---
+    // Even if a classification rule matched 'Delete', we must never apply it
+    // to emails from protected domains or senders. Strip 'Delete' here so
+    // the safety check in CleanupService is a true double-check, not the only gate.
+    const safeDomains = (CONFIG.SAFETY.SAFE_DOMAINS || []).map((d) =>
+      String(d).trim().toLowerCase()
+    );
+    const safeSenders = (CONFIG.SAFETY.SAFE_SENDERS || []).map((s) =>
+      String(s).trim().toLowerCase()
+    );
+    const domainIsSafe = domain && safeDomains.includes(domain.toLowerCase());
+    const senderIsSafe = safeSenders.some(
+      (s) => from && from.startsWith(s)
+    );
+
+    if (domainIsSafe || senderIsSafe) {
+      const filteredLabels = [...matchedLabels].filter(
+        (l) => l.toLowerCase() !== 'delete'
+      );
+      return {
+        labels: filteredLabels,
+        from: from,
+        domain: domain,
+      };
     }
 
     return {
